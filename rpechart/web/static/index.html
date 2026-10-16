@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rpechart · 程序化制谱</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><b>rpechart</b><span>参数 → 谱面 → 画面</span></div>
+  <div class="meta" id="meta">…</div>
+  <button id="btn-gen" class="primary">生成 / 重渲</button>
+</header>
+
+<main class="split">
+  <section class="pane left">
+    <h2>参数 <small>spec.json（唯一输入）</small></h2>
+    <div class="quick" id="quick"></div>
+    <details open><summary>原始 JSON</summary>
+      <textarea id="spec" spellcheck="false"></textarea>
+    </details>
+    <div class="row">
+      <button id="btn-apply">应用 JSON 并重生成</button>
+      <button id="btn-reload" class="ghost">丢弃改动</button>
+      <button id="btn-template" class="ghost">插入模板</button>
+    </div>
+    <p class="hint" id="spec-err"></p>
+
+    <h2>观察</h2>
+    <div id="summary" class="summary"></div>
+    <h3>校验报告</h3>
+    <div id="report" class="report"></div>
+    <h3>分线物量</h3>
+    <table id="lines" class="lines"></table>
+  </section>
+
+  <section class="pane right">
+    <h2>画面 <small>与导出的 MP4 同一渲染器</small></h2>
+    <div class="controls">
+      <button id="btn-play">▶ 播放</button>
+      <input id="time" type="range" min="0" max="60" step="0.01" value="0">
+      <span id="time-label" class="mono">0.000s</span>
+      <label><input id="hud" type="checkbox" checked> HUD</label>
+      <select id="size">
+        <option value="960x540" selected>960×540</option>
+        <option value="1280x720">1280×720</option>
+        <option value="1920x1080">1920×1080</option>
+      </select>
+    </div>
+    <div class="stage"><img id="frame" alt="预览"></div>
+    <details><summary>当前 chart.json（RPE 风格原文）</summary>
+      <pre id="chart" class="code"></pre>
+    </details>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

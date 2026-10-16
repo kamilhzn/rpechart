@@ -1,0 +1,81 @@
+{
+  "name": "示例曲",
+  "charter": "AI",
+  "composer": "someone",
+  "level": "IN Lv.14",
+  "song": "song.mp3",
+  "background": "background.png",
+  "bpm": 174,
+  "duration": 60,
+  "last_beat": 128,
+  "lines": [
+    {
+      "name": "主角",
+      "y": -180
+    },
+    {
+      "name": "对手",
+      "y": 180
+    },
+    {
+      "name": "旁观",
+      "y": 0
+    }
+  ],
+  "sections": [
+    {
+      "start": 0,
+      "end": 32,
+      "role": "N",
+      "density": 0.5,
+      "tone": "dark"
+    },
+    {
+      "start": 32,
+      "end": 96,
+      "role": "B",
+      "density": 2,
+      "tone": "blue"
+    },
+    {
+      "start": 96,
+      "end": 128,
+      "role": "R",
+      "density": 2.5,
+      "tone": "red"
+    }
+  ],
+  "motion": {
+    "sways": {
+      "0": {
+        "x_amp": 120,
+        "x_period": 32,
+        "y_amp": 40,
+        "y_period": 48,
+        "rot_amp": 5,
+        "rot_period": 24
+      },
+      "1": {
+        "x_amp": 90,
+        "x_period": 24,
+        "rot_amp": 3,
+        "rot_period": 16
+      },
+      "2": {
+        "x_amp": 70,
+        "x_period": 48
+      }
+    },
+    "gates": {
+      "B": 0.9,
+      "R": 0.8,
+      "N": 0.4
+    },
+    "speeds": {
+      "B": 12,
+      "R": 11,
+      "N": 9.5
+    }
+  },
+  "out": "build/demo.json"
+}

@@ -1,0 +1,97 @@
+{
+   "BPMList" : [
+      {
+         "bpm" : 153.59999999999999,
+         "startTime" : [ 0, 0, 1 ]
+      }
+   ],
+   "META" : {
+      "RPEVersion" : 113,
+      "background" : "background.png",
+      "charter" : "rpechart",
+      "composer" : "nobody",
+      "id" : "9000000002",
+      "level" : "EZ Lv.1",
+      "name" : "Legacy",
+      "offset" : 0,
+      "song" : "song.mp3"
+   },
+   "chartTime" : 0.0,
+   "judgeLineGroup" : [ "Default" ],
+   "judgeLineList" : [
+      {
+         "Group" : 0,
+         "Name" : "legacy",
+         "Texture" : "line.png",
+         "bpmfactor" : 1.0,
+         "eventLayers" : [
+            {
+               "alphaEvents" : [
+                  {
+                     "bezier" : 0,
+                     "bezierPoints" : [ 0.0, 0.0, 0.0, 0.0 ],
+                     "easingLeft" : 0.0,
+                     "easingRight" : 1.0,
+                     "easingType" : 1,
+                     "end" : 255,
+                     "endTime" : [ 1, 0, 1 ],
+                     "linkgroup" : 0,
+                     "start" : 0,
+                     "startTime" : [ 0, 0, 1 ]
+                  }
+               ]
+            },
+            null,
+            null,
+            null,
+            {
+               "moveXEvents" : [
+                  {
+                     "easingLeft" : 0.0,
+                     "easingRight" : 1.0,
+                     "easingType" : 6,
+                     "end" : 0.0,
+                     "endTime" : [ 2, 0, 2 ],
+                     "linkgroup" : 0,
+                     "start" : -0.0,
+                     "startTime" : [ 1, 0, 1 ]
+                  },
+                  {
+                     "easingLeft" : 0.0,
+                     "easingRight" : 1.0,
+                     "easingType" : 1,
+                     "end" : -0.0,
+                     "endTime" : [ 3, 0, 2 ],
+                     "linkgroup" : 0,
+                     "start" : -135.0,
+                     "startTime" : [ 2, 0, 2 ]
+                  }
+               ]
+            }
+         ],
+         "father" : -1,
+         "isCover" : 1,
+         "notes" : [
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 0, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 0, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            }
+         ],
+         "numOfNotes" : 1,
+         "rotateWithFather" : true,
+         "zOrder" : 0
+      }
+   ],
+   "multiLineString" : "",
+   "multiScale" : 1.0,
+   "xybind" : true
+}

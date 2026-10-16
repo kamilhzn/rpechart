@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpechart"
+version = "0.1.0"
+description = "程序化读写 Re:PhiEdit (RPE) / Phigros 谱面：无损往返、标准 pez 导出、离线渲染与参数化生成"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["phigros", "rpe", "phiEdit", "chart", "rhythm-game"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+    "Topic :: Multimedia :: Graphics",
+]
+
+# 核心运行时**零第三方依赖**（只用标准库）。
+# 下面这些都是可选的：用到哪块装哪块。
+dependencies = []
+
+[project.optional-dependencies]
+# 离线渲染器（rpechart.render）与 Web UI 的预览都需要 Pillow
+render = ["Pillow>=10.0"]
+# 从音频/视频抽特征（rpechart.gen 的真实特征来源）
+tempo = ["numpy>=1.24"]
+# 探测音频时长 / 编码 MP4（走 imageio-ffmpeg 自带的静态 ffmpeg）
+audio = ["imageio-ffmpeg>=0.4"]
+# 一把梭：开发与验收用的全套
+dev = ["Pillow>=10.0", "numpy>=1.24", "imageio-ffmpeg>=0.4"]
+
+# ------------------------------------------------------------------ 打包
+# 只打库本身。tests / examples / build / work 都不属于发布物，不进 wheel。
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["rpechart*"]
+exclude = ["tests*", "examples*", "build*", "work*"]
+
+[tool.setuptools.package-data]
+# Web UI 的前端是纯静态文件，必须随包带上（没有构建步骤）。
+"rpechart.web" = ["static/*"]
+
+# ------------------------------------------------------------------ 工具
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["build", "work"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = ["E501"]

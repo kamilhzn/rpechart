@@ -1,0 +1,54 @@
+:root {
+  --bg: #0b0d12; --panel: #141821; --panel2: #1b2029; --line: #262c38;
+  --fg: #e8ecf3; --dim: #8b95a7; --accent: #0bc3ff; --warm: #edecb0;
+  --err: #ff5d6c; --warn: #ffb454; --caution: #7ec8a9;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-size: 14px; }
+button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel2); color: var(--fg); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #04121a; font-weight: 600; }
+button.ghost { background: transparent; }
+small { color: var(--dim); font-weight: 400; }
+.mono { font-family: Consolas, "Cascadia Mono", monospace; }
+.top { display: flex; align-items: center; gap: 18px; padding: 12px 18px;
+  background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.brand b { font-size: 16px; letter-spacing: .5px; }
+.brand span { color: var(--dim); margin-left: 10px; font-size: 12px; }
+.meta { flex: 1; color: var(--dim); font-size: 12px; }
+.split { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(420px, 1.15fr); gap: 0; }
+.pane { padding: 18px; }
+.left { border-right: 1px solid var(--line); }
+h2 { font-size: 14px; margin: 4px 0 10px; display: flex; align-items: baseline; gap: 8px; }
+h3 { font-size: 12px; color: var(--dim); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .6px; }
+textarea { width: 100%; height: 260px; background: #0e1117; color: #cfe3ff; border: 1px solid var(--line);
+  border-radius: 6px; padding: 10px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.5; resize: vertical; }
+.quick { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-bottom: 12px; }
+.quick label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--dim); }
+.quick input { background: #0e1117; color: var(--fg); border: 1px solid var(--line);
+  border-radius: 5px; padding: 5px 8px; font: inherit; }
+.row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.hint { color: var(--err); min-height: 18px; margin: 8px 0 0; font-size: 12.5px; white-space: pre-wrap; }
+.summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.card b { display: block; font-size: 20px; }
+.card span { color: var(--dim); font-size: 11.5px; }
+.report { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.issue { padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12.5px; display: flex; gap: 8px; }
+.issue:last-child { border-bottom: none; }
+.sev { flex: 0 0 64px; font-weight: 600; font-size: 11px; }
+.sev.error { color: var(--err); } .sev.warning { color: var(--warn); } .sev.caution { color: var(--caution); }
+.issue .code { color: var(--dim); flex: 0 0 168px; font-family: Consolas, monospace; font-size: 11.5px; }
+table.lines { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.lines th, table.lines td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+table.lines th { color: var(--dim); font-weight: 500; font-size: 11.5px; }
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.controls input[type=range] { flex: 1; min-width: 140px; accent-color: var(--accent); }
+.stage { background: #000; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stage img { display: block; width: 100%; height: auto; }
+.code { background: #0e1117; border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+  max-height: 320px; overflow: auto; font-family: Consolas, monospace; font-size: 11.5px; color: #b9cbe4; }
+details summary { cursor: pointer; color: var(--dim); font-size: 12.5px; padding: 4px 0; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } .left { border-right: none; border-bottom: 1px solid var(--line); } }

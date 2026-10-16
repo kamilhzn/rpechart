@@ -1,0 +1,553 @@
+{
+   "BPMList" : [
+      {
+         "bpm" : 174.0,
+         "startTime" : [ 0, 0, 1 ]
+      }
+   ],
+   "META" : {
+      "RPEVersion" : 160,
+      "background" : "background.png",
+      "charter" : "rpechart",
+      "composer" : "nobody",
+      "id" : "9000000001",
+      "level" : "IN Lv.12",
+      "name" : "Fixture Song",
+      "offset" : 0,
+      "song" : "song.mp3"
+   },
+   "chartTime" : 0.0,
+   "judgeLineGroup" : [ "Default" ],
+   "judgeLineList" : [
+      {
+         "Group" : 0,
+         "Name" : "main",
+         "Texture" : "line.png",
+         "bpmfactor" : 1.0,
+         "eventLayers" : [
+            {
+               "moveXEvents" : [
+                  {
+                     "easingType" : 1,
+                     "end" : 0.0,
+                     "endTime" : [ 2, 0, 1 ],
+                     "start" : 0.0,
+                     "startTime" : [ 0, 0, 1 ]
+                  },
+                  {
+                     "easingType" : 6,
+                     "end" : 120.0,
+                     "endTime" : [ 6, 0, 1 ],
+                     "start" : 0.0,
+                     "startTime" : [ 2, 0, 1 ]
+                  },
+                  {
+                     "easingType" : 1,
+                     "end" : 120.0,
+                     "endTime" : [ 64, 0, 1 ],
+                     "start" : 120.0,
+                     "startTime" : [ 6, 0, 1 ]
+                  }
+               ],
+               "moveYEvents" : [
+                  {
+                     "easingType" : 1,
+                     "end" : 0.0,
+                     "endTime" : [ 2, 0, 1 ],
+                     "start" : 0.0,
+                     "startTime" : [ 0, 0, 1 ]
+                  },
+                  {
+                     "easingType" : 6,
+                     "end" : 60.0,
+                     "endTime" : [ 6, 0, 1 ],
+                     "start" : 0.0,
+                     "startTime" : [ 2, 0, 1 ]
+                  },
+                  {
+                     "easingType" : 1,
+                     "end" : 60.0,
+                     "endTime" : [ 64, 0, 1 ],
+                     "start" : 60.0,
+                     "startTime" : [ 6, 0, 1 ]
+                  }
+               ],
+               "rotateEvents" : [
+                  {
+                     "easingType" : 8,
+                     "end" : 12.5,
+                     "endTime" : [ 8, 0, 1 ],
+                     "start" : 0.0,
+                     "startTime" : [ 6, 0, 1 ]
+                  }
+               ],
+               "speedEvents" : [
+                  {
+                     "end" : 3.0,
+                     "endTime" : [ 4, 0, 1 ],
+                     "start" : 1.0,
+                     "startTime" : [ 0, 0, 1 ]
+                  },
+                  {
+                     "end" : 1.5,
+                     "endTime" : [ 8, 0, 1 ],
+                     "start" : 3.0,
+                     "startTime" : [ 4, 0, 1 ]
+                  }
+               ]
+            }
+         ],
+         "extended" : {
+            "colorEvents" : [
+               {
+                  "easingType" : 1,
+                  "end" : [ 80, 160, 255 ],
+                  "endTime" : [ 12, 0, 1 ],
+                  "start" : [ 255, 80, 80 ],
+                  "startTime" : [ 8, 0, 1 ]
+               }
+            ],
+            "inclineEvents" : [
+               {
+                  "easingType" : 1,
+                  "end" : 18.0,
+                  "endTime" : [ 14, 0, 1 ],
+                  "start" : 0.0,
+                  "startTime" : [ 12, 0, 1 ]
+               }
+            ],
+            "scaleXEvents" : [
+               {
+                  "easingType" : 1,
+                  "end" : 1.5,
+                  "endTime" : [ 12, 0, 1 ],
+                  "start" : 1.0,
+                  "startTime" : [ 10, 0, 1 ]
+               }
+            ],
+            "scaleYEvents" : [
+               {
+                  "easingType" : 1,
+                  "end" : 1.5,
+                  "endTime" : [ 12, 0, 1 ],
+                  "start" : 1.0,
+                  "startTime" : [ 10, 0, 1 ]
+               }
+            ],
+            "textEvents" : [
+               {
+                  "easingType" : 1,
+                  "end" : "fixture",
+                  "endTime" : [ 8, 0, 1 ],
+                  "start" : "fixture",
+                  "startTime" : [ 0, 0, 1 ]
+               }
+            ]
+         },
+         "father" : -1,
+         "isCover" : 1,
+         "notes" : [
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 0, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 0, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 1, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 1, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 2, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 2, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 3, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 3, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 4, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 4, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 4, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 4, 0, 1 ],
+               "type" : 4,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 5, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 5, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 6, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 6, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 7, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 7, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 8, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 8, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 8, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 8, 0, 1 ],
+               "type" : 3,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 9, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 9, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 10, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 10, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 11, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 11, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 12, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 12, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 13, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 13, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 14, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 14, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 15, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : 405.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 15, 0, 1 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 14, 0, 1 ],
+               "isFake" : 0,
+               "positionX" : -135.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 12, 0, 1 ],
+               "type" : 2,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            }
+         ],
+         "numOfNotes" : 18,
+         "rotateWithFather" : true,
+         "zOrder" : 0
+      },
+      {
+         "Group" : 0,
+         "Name" : "side",
+         "Texture" : "line.png",
+         "bpmfactor" : 1.0,
+         "eventLayers" : [
+            {
+               "moveXEvents" : [
+                  {
+                     "easingType" : 1,
+                     "end" : 0.0,
+                     "endTime" : [ 64, 0, 1 ],
+                     "start" : 0.0,
+                     "startTime" : [ 0, 0, 1 ]
+                  }
+               ],
+               "moveYEvents" : [
+                  {
+                     "easingType" : 1,
+                     "end" : 200.0,
+                     "endTime" : [ 64, 0, 1 ],
+                     "start" : 200.0,
+                     "startTime" : [ 0, 0, 1 ]
+                  }
+               ],
+               "speedEvents" : [
+                  {
+                     "end" : 12.0,
+                     "endTime" : [ 20, 0, 1 ],
+                     "start" : 12.0,
+                     "startTime" : [ 0, 0, 1 ]
+                  }
+               ]
+            }
+         ],
+         "father" : -1,
+         "isCover" : 1,
+         "notes" : [
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 0, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 0, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 2, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 2, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 4, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 4, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 6, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 6, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 8, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 8, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 10, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 10, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 12, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 12, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            },
+            {
+               "above" : 1,
+               "alpha" : 255,
+               "endTime" : [ 14, 1, 2 ],
+               "isFake" : 0,
+               "positionX" : 0.0,
+               "size" : 1.0,
+               "speed" : 1.0,
+               "startTime" : [ 14, 1, 2 ],
+               "type" : 1,
+               "visibleTime" : 999999.0,
+               "yOffset" : 0.0
+            }
+         ],
+         "numOfNotes" : 8,
+         "rotateWithFather" : true,
+         "zOrder" : 0
+      }
+   ],
+   "multiLineString" : "",
+   "multiScale" : 1.0,
+   "xybind" : true
+}
