@@ -21,10 +21,15 @@
 | 官方贴图与字体 | Re:PhiEdit 安装目录下的 `PhiEdit/Resources/Texture/` 与 `fonts/` |
 | 判定环（打击特效） | 同上的 `Texture/HE/`，31 帧 `img-1..31.png` |
 | 真实谱面语料 | 自己收集，或用 `tests/fixtures/charts/*.json` 起步 |
+| 打击音效（SE） | 同上的 `Resources/SE/`：`tap.mp3` / `flick.mp3` / `drag.mp3` |
 
 渲染器通过 `rpechart/render/assets.py` 定位贴图：先看环境变量 `RPECHART_ASSETS`，
-再从包目录逐级向上找 `PhiEdit/Resources`。**找不到就退回内置的色块兜底**，
+再从包目录逐级向上找 `PhiEdit/Resources`。**找不到就退回内置的键形兜底**，
 不会崩、也不会去找任何硬编码盘符。
+
+打击音素材走同一套逻辑，只是变量名不同：`RPECHART_SE_DIR` 优先，其次是贴图目录下的
+`SE/`，最后从谱面目录逐级向上找 `PhiEdit/Resources/SE`。**素材缺失不会让导出失败**，
+只是没有音效（见 [docs/rendering.md](rendering.md) 的「打击音（SE）」）。
 
 ## 可以随便改
 

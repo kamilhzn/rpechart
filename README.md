@@ -4,10 +4,12 @@
 
 - **无损往返** —— 载入再写出与 RPE 自己导出的 chart.json **逐字节相同**；
 - **标准 pez 导出** —— `.pez`（zip）的成员、`info.txt` 键序与换行都照抄真实文件；
-- **离线渲染** —— 用官方贴图复刻实机画面（下落几何按秒积分、HUD、判定环），
-  可渲成单帧/接触表/MP4；
+- **离线渲染** —— 用官方贴图复刻实机画面（下落几何按秒积分、HUD、判定环、
+  双押/多押的外泛黄光），可渲成单帧/接触表/MP4，并可叠上 PhiEdit 的打击音效；
 - **参数化生成** —— 只写一个 `spec.json`（BPM / 段落 / 判定线 / 风格）就得到一张谱面；
-- **本地 Web UI** —— 改参数 → 立刻重新生成 → 立刻看画面与校验报告。
+- **本地 Studio** —— 浏览器里的谱面编辑器：左栏改参数或 JSON、中间出画面
+  （与导出 MP4 **同一个渲染器**）、下边是可缩放的时间轴与胶片、右边实时看校验；
+  一键后台导出 MP4（可取消）。纯静态三件套，零构建、零外网。
 
 ## 安装
 
@@ -17,7 +19,7 @@ pip install -e ".[render]"  # 加渲染（Pillow）
 pip install -e ".[dev]"     # 加 numpy + imageio-ffmpeg（特征提取与音视频）
 ```
 
-## 四步上手
+## 五步上手
 
 ```python
 import rpechart as R
@@ -35,9 +37,14 @@ R.export_pez(chart, "out.pez", chart_name="chart.json")
 
 # 4. 渲染成视频（同一份 chart.json）
 R.render_chart_video("chart.json", "out.mp4", fps=60, size=(1920, 1080))
+
+# 5. 想连打击音一起出（素材来自 PhiEdit/Resources/SE，缺了也不报错）
+R.render_chart_video("chart.json", "out.mp4", audio="song.mp3",
+                   hitsounds="PhiEdit/Resources/SE")
 ```
 
-想看画面而不写代码：`python -m rpechart.web --spec examples/demo.spec.json`。
+想看画面而不写代码：`python -m rpechart.web --spec examples/demo.spec.json`（打开 Studio，
+见 [docs/web-ui.md](docs/web-ui.md)）。
 
 ## 文档
 

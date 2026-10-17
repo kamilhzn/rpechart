@@ -30,7 +30,7 @@
 from __future__ import annotations
 
 import typing as _t
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .features import ROLE_B, ROLE_N, ROLE_R, ROLE_RB, ROLES, BeatFeatures
 
@@ -153,12 +153,12 @@ def normalize_sections(sections: _t.Sequence[Section]) -> list[Section]:
     1e-9 的缝，RPE 里看不出来，但守门测试会挂。所以统一按起点排序，
     把前一段的 `end` 拉到后一段的 `start`。
     """
-    out = sorted(sections, key=lambda s: (s.start, s.end))
+    out = [replace(s) for s in sorted(sections, key=lambda s: (s.start, s.end))]
     for a, b in zip(out, out[1:]):
-        if b.start < a.end:
-            # 真重叠：把前一段截断（后一段的编排优先）
-            a.end = b.start
-        elif b.start > a.end:
+        if b.start != a.end:
+            # 真重叠（b 更早）截断前一段；真空隙（b 更晚）填平。
+            # 空隙不再静默：ChartSpec.problems() 会在**原始**段表上
+            # 用 sections_tile 报出来。
             a.end = b.start
     return [s for s in out if s.end > s.start or s.length == 0]
 

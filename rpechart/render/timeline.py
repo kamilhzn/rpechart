@@ -21,6 +21,7 @@ from .scene import (HitDraw, HoldDraw, HudState, ImageDraw, LineDraw, NoteDraw,
 from .theme import Theme
 
 _BEAT = Beat.of
+_MISSING = object()
 
 
 def _clamp01(value: float) -> float:
@@ -131,7 +132,13 @@ class LineRuntime:
         self.text = EventTrack(_collect_extended(line, "textEvents"))
         self.floor = G.FloorCurve(_collect(line, EVENT_SPEED), timing, max_seconds,
                                   step=floor_step)
-        self.father = int(getattr(line, "father", -1) or -1)
+        # 注意：**不能**写成 `getattr(...) or -1` —— father=0 是合法的
+        # 「父线是第 0 条」，裸 or 会把它吞成 -1，父链在渲染时静默断开
+        # （tests/fixtures/charts/multi.json 的 child 线正是 father: 0）。
+        try:
+            self.father = int(getattr(line, "father", -1))
+        except (TypeError, ValueError):
+            self.father = -1
         self.rotate_with_father = bool(getattr(line, "rotateWithFather", True))
         self.draw_below = int(getattr(line, "isCover", 1) or 0) != 1
         self.texture = str(getattr(line, "Texture", "line.png") or "line.png")
@@ -159,10 +166,71 @@ class RenderModel:
                       for i, ln in enumerate(chart.judgeLineList)]
         #: 官方打击特效序列帧名缓存（渲染时才查资源目录，构造时不碰磁盘）
         self._hit_frame_cache = None
+        #: Beat.frac -> 秒 的换算记忆。事件轨在相邻帧反复问同一批拍号，而音符的
+        #: 起点/终点更是在整段播放里被反复问 —— 换算只依赖 BPMList，谱面构造之后
+        #: 不可变，所以这个缓存永远不需要失效。
         self._seconds_cache: dict = {}
+        #: 每个音符的 (起秒, 止秒)，与 chart.judgeLineList 展平后的顺序一一对应；
+        #: _line_spans[i] 是第 i 条判定线在其中的切片。这样「拍 -> 秒」整谱只算一次
+        #: （同一拍号共享），每帧退化成查表，而不是 O(音符数) 的分段累加。
+        note_seconds: list = []
+        line_spans: list = []
+        combo_seconds: list = []
+        cursor = 0
+        for ln in chart.judgeLineList:
+            ln_notes = ln.notes or ()
+            line_spans.append((cursor, cursor + len(ln_notes)))
+            for note in ln_notes:
+                start_s, end_s = self._seconds(note.startTime, note.endTime)
+                note_seconds.append((start_s, end_s))
+                if not note.isFake:
+                    combo_seconds.append(start_s)
+            cursor += len(ln_notes)
+        self._note_seconds = note_seconds
+        self._line_spans = line_spans
         notes = [n for ln in chart.judgeLineList for n in (ln.notes or ())]
         self.note_count = len(notes)
         self.judgeable_count = sum(1 for n in notes if not n.isFake)
+        #: 多押（双押/多押）的音符起点（Beat.frac）。
+        #: 口径逐字对齐 phira prpr/src/parse.rs:20-71 的 process_lines：
+        #: 把所有判定线的音符起点汇到一起，**出现次数 >= 2** 的时间点算多押；
+        #: 命中的音符全部标记（含 fake，phira 也不排除 fake）。
+        #: 注意这是**跨线全局**的判据，不是「同一条线同一时刻」——
+        #: 真谱里大量多押是不同判定线上的 Tap+Flick+Drag 同时出现。
+        self._multi_fracs = self._multi_hint_fracs(chart)
+        #: 参与连击（非 fake）的音符起秒，升序 —— hud_state 只对它做一次二分。
+        combo_seconds.sort()
+        self._combo_seconds = combo_seconds
+
+    @staticmethod
+    def _frac(value):
+        """取一个时间的 Beat.frac（容忍 int/float/Fraction 形状的输入）。"""
+        return value.frac if isinstance(value, Beat) else Beat.of(value).frac
+
+    def _multi_hint_fracs(self, chart) -> frozenset:
+        """同一个起点上 >= 2 个音符的那些起点（口径见 __init__ 的注释）。"""
+        counts = {}
+        for ln in chart.judgeLineList:
+            for note in (ln.notes or ()):
+                frac = self._frac(note.startTime)
+                counts[frac] = counts.get(frac, 0) + 1
+        return frozenset(frac for frac, n in counts.items() if n >= 2)
+
+    # ------------------------------------------------------------ 拍 -> 秒
+    def _seconds(self, *beats) -> tuple:
+        """把一组 Beat 换算成秒（按 frac 记忆；语义与逐次 beat_to_second 相同）。"""
+        cache = self._seconds_cache
+        out = []
+        for value in beats:
+            frac = value.frac if isinstance(value, Beat) else Beat.of(value).frac
+            seconds = cache.get(frac, _MISSING)
+            if seconds is _MISSING:
+                # 传 Fraction 而不是 Beat：Beat.of 对 Fraction 是恒等映射，结果与
+                # beat_to_second(Beat(...)) 完全一致，但省掉一次 Beat 构造。
+                seconds = self.timing.beat_to_second(frac)
+                cache[frac] = seconds
+            out.append(seconds)
+        return tuple(out)
 
     # ------------------------------------------------------------ 长度
     @staticmethod
@@ -185,25 +253,47 @@ class RenderModel:
         return best
 
     def second_of(self, beat_value) -> float:
-        return self.timing.beat_to_second(beat_value)
+        return self._seconds(beat_value)[0]
 
     # ------------------------------------------------------------ 线状态
-    def _line_pose(self, rt: LineRuntime, seconds: float):
+
+    #: 父链跟踪的硬上限。合法谱面远远到不了（嵌套十几层已是极端），但坏谱面
+    #: 必须**有界**：`validate` 会把父线成环报成 FatherLoop，而渲染路径从不
+    #: 调用 validate —— 没有这道闸，谱面里一旦有 A→B→C→B 这种环，`frame()`
+    #: 每一帧都 RecursionError，比把画面画错更糟（整个 render video 直接崩）。
+    FATHER_DEPTH_LIMIT = 256
+
+    def _parent_of(self, rt: LineRuntime, seen: frozenset):
+        """父线下标；越界、自环、回边、链过深都算「没有父线」。"""
+        father = rt.father
+        if father < 0 or father >= len(self.lines) or father in seen:
+            return None
+        if len(seen) >= self.FATHER_DEPTH_LIMIT:
+            return None
+        return father
+
+    def _line_pose(self, rt: LineRuntime, seconds: float,
+                   _seen: frozenset = frozenset()):
         frac = self.timing.second_to_beat(seconds).frac
         x = float(rt.x.at_beat(frac, 0.0))
         y = float(rt.y.at_beat(frac, 0.0))
         rot = float(rt.rot.at_beat(frac, 0.0))
-        if rt.rotate_with_father and rt.father >= 0 and rt.father < len(self.lines):
-            prot, _, _ = self._line_pose(self.lines[rt.father], seconds)
+        father = self._parent_of(rt, _seen)
+        if rt.rotate_with_father and father is not None:
+            prot, _, _ = self._line_pose(self.lines[father], seconds,
+                                         _seen | {rt.index})
             rot += prot
         return rot, x, y
 
-    def line_origin(self, index: int, seconds: float, width: int, height: int):
+    def line_origin(self, index: int, seconds: float, width: int, height: int,
+                    _seen: frozenset = frozenset()):
         """判定线原点的屏幕像素坐标与旋转角（度）。"""
         rt = self.lines[index]
-        rot, x, y = self._line_pose(rt, seconds)
-        if rt.father >= 0 and rt.father < len(self.lines):
-            px, py, prot = self.line_origin(rt.father, seconds, width, height)
+        rot, x, y = self._line_pose(rt, seconds, _seen)
+        father = self._parent_of(rt, _seen)
+        if father is not None:
+            px, py, prot = self.line_origin(father, seconds, width, height,
+                                            _seen | {rt.index})
             dx = x * G.px_per_rpe_x(width)
             dy = -y * G.px_per_rpe_y(height)
             rdx, rdy = G.rotate_point(dx, dy, prot)
@@ -234,9 +324,9 @@ class RenderModel:
         rt = self.lines[index]
         out = []
         for note in rt.line.notes or ():
-            note_t = self.timing.beat_to_second(note.startTime)
+            note_t = self._seconds(note.startTime)[0]
             if note.is_hold:
-                end_t = self.timing.beat_to_second(note.endTime)
+                end_t = self._seconds(note.endTime)[0]
                 if seconds >= end_t:
                     continue
                 head = G.note_delta_rpe(rt.floor, note, note_t, seconds)
@@ -277,7 +367,7 @@ class RenderModel:
         rows = []
         b = 0.0
         while b < self.content_beats:
-            seconds = float(self.timing.beat_to_second(Beat(b)))
+            seconds = self._seconds(Beat(b))[0]
             cnt = {i: self.note_count_between(i, b, b + step)
                    for i in range(len(self.lines))}
             shown = sum(self.visible_count(i, seconds) for i in range(len(self.lines)))
@@ -332,10 +422,11 @@ class RenderModel:
         size = float(getattr(theme, 'hit_size', 0.25)) * height
         if size <= 1.0:
             return
-        for note in rt.line.notes or ():
+        start, _end = self._line_spans[index]
+        for offset, note in enumerate(rt.line.notes or ()):
             if float(note.isFake):
                 continue
-            note_t = self.timing.beat_to_second(note.startTime)
+            note_t = self._note_seconds[start + offset][0]
             age = seconds - note_t
             if age < 0.0 or age >= duration:
                 continue
@@ -417,8 +508,9 @@ class RenderModel:
             frac = self.timing.second_to_beat(seconds).frac
             incline_deg = float(rt.incline.at_beat(frac, 0.0))
         incline_sin = math.sin(math.radians(incline_deg))
-        for note in line.notes or ():
-            note_t = self.timing.beat_to_second(note.startTime)
+        start, _end = self._line_spans[index]
+        for offset, note in enumerate(line.notes or ()):
+            note_t = self._note_seconds[start + offset][0]
             above = bool(note.above)
             if not above and not below_visible:
                 continue
@@ -432,7 +524,10 @@ class RenderModel:
                     continue
             if note.is_hold:
                 self._emit_hold(scene, note, rt, ox, oy, ang, line_alpha, seconds,
-                                note_t, width, height, theme, note_w, above, incline_sin)
+                                note_t, self._note_seconds[start + offset][1], width,
+                                height, theme, note_w, above, incline_sin,
+                                theme.multi_hint
+                                and self._frac(note.startTime) in self._multi_fracs)
                 continue
             # 不再按 delta<0 剔除：phira core/note.rs:236-241 允许音符越过判定线后
             # 继续下落并在 FADEOUT_TIME 内淡出，剔除交给上面的时间判据与 note_fade。
@@ -453,17 +548,23 @@ class RenderModel:
             a *= G.note_fade(note_t, seconds, fadeout)
             if a <= 0.0:
                 continue
-            texture = theme.note_textures.get(int(note.type), "Tap2.png")
-            scene.notes.append(NoteDraw(int(note.type), cx, cy, angle=note_ang,
+            kind = int(note.type)
+            texture = theme.note_textures.get(kind, "Tap2.png")
+            multi = theme.multi_hint and self._frac(note.startTime) in self._multi_fracs
+            # 多押时换成官方高亮贴图；没有官方 HL 变体（长按）的留给 raster
+            # 现场合成外泛光，所以 texture_mh 用空串表达「没有」而不是缺键。
+            texture_mh = theme.note_textures_mh.get(kind, "") if multi else ""
+            scene.notes.append(NoteDraw(kind, cx, cy, angle=note_ang,
                                         width=note_w * float(note.size),
                                         height=note_w * float(note.size),
                                         alpha=a, color=_note_color(note),
                                         above=above, fake=bool(note.isFake),
-                                        x_scale=1.0, texture=texture))
+                                        x_scale=1.0, texture=texture,
+                                        texture_mh=texture_mh, multi=multi))
 
     def _emit_hold(self, scene, note, rt, ox, oy, ang, line_alpha, seconds, note_t,
-                   width, height, theme, note_w, above, incline_sin) -> None:
-        end_t = self.timing.beat_to_second(note.endTime)
+                   end_t, width, height, theme, note_w, above, incline_sin,
+                   multi: bool = False) -> None:
         if seconds >= end_t:
             return
         head_delta = G.note_delta_rpe(rt.floor, note, note_t, seconds)
@@ -494,18 +595,17 @@ class RenderModel:
                                     width=note_w * float(note.size), alpha=a,
                                     color=_note_color(note), above=above,
                                     fake=bool(note.isFake),
-                                    texture_head="HoldHead.png", texture_body="Hold.png",
-                                    texture_tail="HoldEnd.png"))
+                                    texture_head=theme.hold_textures.get("head", "HoldHead.png"),
+                                    texture_body=theme.hold_textures.get("body", "Hold.png"),
+                                    texture_tail=theme.hold_textures.get("tail", "HoldEnd.png"),
+                                    multi=bool(multi)))
 
     # ------------------------------------------------------------ HUD
     def hud_state(self, seconds: float) -> HudState:
-        combo = 0
-        for ln in self.chart.judgeLineList:
-            for note in ln.notes or ():
-                if note.isFake:
-                    continue
-                if self.timing.beat_to_second(note.startTime) <= seconds:
-                    combo += 1
+        # 原来这里每帧遍历整谱所有音符（真谱上千个）；现在所有音符的起秒在
+        # __init__ 里就算好了，combo 只是「起秒 <= seconds 的非 fake 音符数」。
+        # 二分边界与原来的逐项比较完全一致（都是 <=，含等号）。
+        combo = bisect.bisect_right(self._combo_seconds, float(seconds))
         total = max(1, self.judgeable_count)
         score = int(round(1000000.0 * combo / total))
         meta = self.chart.META

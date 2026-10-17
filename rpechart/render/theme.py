@@ -55,8 +55,10 @@ class Theme:
 
     __slots__ = ("background", "line_color", "line_thickness", "line_length_world",
                  "note_scale", "fadeout", "hud", "judge_ball", "hold_opacity",
-                 "textures", "note_textures", "hold_textures",
-                 "hit_effects", "hit_duration", "hit_size", "hit_color")
+                 "textures", "note_textures", "hold_textures", "note_textures_mh",
+                 "multi_hint", "multi_glow_radius", "multi_glow_gain",
+                 "multi_glow_color", "hit_effects", "hit_duration", "hit_size",
+                 "hit_color")
 
     def __init__(self, *, background: RGB = (0, 0, 0),
                  line_color: RGB = (237, 236, 176),
@@ -70,7 +72,11 @@ class Theme:
                  hit_effects: bool = True,
                  hit_duration: float = 0.32,
                  hit_size: float = 0.29,
-                 hit_color: _t.Optional[RGB] = None) -> None:
+                 hit_color: _t.Optional[RGB] = None,
+                 multi_hint: bool = True,
+                 multi_glow_radius: float = 0.24,
+                 multi_glow_gain: float = 2.0,
+                 multi_glow_color: RGB = (255, 255, 102)) -> None:
         self.background = tuple(background)
         self.line_color = tuple(line_color)
         self.line_thickness = float(line_thickness)
@@ -97,6 +103,18 @@ class Theme:
         # 音符贴图：与 RPE 的 type 常量一致（1 Tap / 2 Hold / 3 Flick / 4 Drag）
         self.note_textures = {1: "Tap2.png", 2: "Hold.png", 3: "Flick2.png", 4: "Drag2.png"}
         self.hold_textures = {"head": "HoldHead.png", "body": "Hold.png", "tail": "HoldEnd.png"}
+        #: 多押高亮贴图。官方 Texture/ 只给了 Flick/Tap/Drag 三个 HL 变体，
+        #: **长按没有**，所以这里不含 2(Hold) —— 缺项的由 raster 现场合成外泛光。
+        self.note_textures_mh = {1: "Tap2HL.png", 3: "Flick2HL.png", 4: "DragHL.png"}
+        #: 多押高亮总开关。语义对齐 phira 的 config.double_hint（默认 true）：
+        #: 开着时「同一时刻 >= 2 个音符」的键全部换成高亮贴图/加外泛光。
+        self.multi_hint = bool(multi_hint)
+        #: 合成外泛光的参数（长按用；以及官方 HL 贴图缺失时的兜底）。
+        #: 半径按内层贴图高度取比例，增益与颜色由官方 HL 贴图反解而来：
+        #: Tap/Drag 的官方光带 ≈ blur(alpha, 0.24H) * 2.00，(255,255,102)。
+        self.multi_glow_radius = float(multi_glow_radius)
+        self.multi_glow_gain = float(multi_glow_gain)
+        self.multi_glow_color = tuple(multi_glow_color)
 
     def copy(self, **changes) -> "Theme":
         other = Theme(background=self.background, line_color=self.line_color,
@@ -107,7 +125,14 @@ class Theme:
                       hold_opacity=self.hold_opacity,
                       hit_effects=self.hit_effects,
                       hit_duration=self.hit_duration, hit_size=self.hit_size,
-                      hit_color=self.hit_color)
+                      hit_color=self.hit_color, multi_hint=self.multi_hint,
+                      multi_glow_radius=self.multi_glow_radius,
+                      multi_glow_gain=self.multi_glow_gain,
+                      multi_glow_color=self.multi_glow_color)
+        # 贴图表是**每实例**的（copy() 也复制一份），否则改一个主题会串到别的主题。
+        other.note_textures = dict(self.note_textures)
+        other.hold_textures = dict(self.hold_textures)
+        other.note_textures_mh = dict(self.note_textures_mh)
         for key, value in changes.items():
             setattr(other, key, value)
         return other

@@ -66,7 +66,7 @@ from __future__ import annotations
 
 import json
 import typing as _t
-from dataclasses import dataclass, field, fields as _fields
+from dataclasses import dataclass, field, fields as _fields, replace as _replace
 from pathlib import Path
 
 from .features import RoleThresholds
@@ -86,9 +86,10 @@ class LineSpec:
     对应 原生成脚本的 `LINE_SPEC` 六元组
     `(索引, 名称, 初始y, 纹理, 覆盖, zOrder)`，外加 `x` / `group` / `anchor`。
 
-    `index` 是**可选**的：不给就按列表顺序自动编号（与
-    :meth:`ChartBuilder.line` 的行为一致）。显式给出时用于复现原脚本那种
-    「索引必须严格递增」的写法。
+    `index` 目前**只是标注**，不被任何消费者读取：判定线的编号与绘制顺序
+    一律由 `lines` 列表的**顺序**决定（:func:`~rpechart.gen.assemble._make_lines`
+    按下标顺序建线，索引即 `lines` 的下标）。显式给出 `index` 只会原样写进
+    spec 的 JSON，用来复现原脚本那种「索引必须严格递增」的写法。
     """
 
     name: str = ""
@@ -246,9 +247,15 @@ class ChartSpec:
         self.rpe_version = int(self.rpe_version)
         self.auto_min_len = max(1, int(self.auto_min_len))
         self.auto_target_len = max(1, int(self.auto_target_len))
-        if not (self.lines and isinstance(self.lines[0], LineSpec)):
-            self.lines = [ln if isinstance(ln, LineSpec) else LineSpec.from_json(ln)
-                          for ln in self.lines]
+        # 逐元素转换：只按 lines[0] 判断类型会让
+        # ["LineSpec", "dict"] 这种混合列表把 dict 原样漏过去，
+        # 之后 spec.lines[1].name 直接 AttributeError。
+        self.lines = [ln if isinstance(ln, LineSpec) else LineSpec.from_json(ln)
+                      for ln in (self.lines or [])]
+        # sections 同理：要么全是 Section、要么全是 dict；混着来时
+        # section_list() 会只认 Section 的那一半。
+        self.sections = [s if isinstance(s, Section) else Section.from_json(s)
+                         for s in (self.sections or [])]
 
     # ============================================================ 派生对象
     def lane_grid(self) -> LaneGrid:
@@ -312,7 +319,9 @@ class ChartSpec:
         kwargs["grid"] = self.lane_grid()
         plans = kwargs.get("plans")
         if plans:
-            merged = dict(DEFAULT_PLANS)
+            # 浅拷贝会让本 spec 与模块级 DEFAULT_PLANS 共享 RolePlan
+            # 对象（改一处等于改所有 planner）。
+            merged = {role: _replace(plan) for role, plan in DEFAULT_PLANS.items()}
             for role, p in plans.items():
                 merged[role] = p if isinstance(p, RolePlan) else RolePlan.from_json(p)
             kwargs["plans"] = merged
@@ -343,6 +352,11 @@ class ChartSpec:
             if f.name == "lines":
                 d["lines"] = [ln.to_json() if isinstance(ln, LineSpec) else _sorted(ln)
                               for ln in v]
+            elif f.name == "sections":
+                # Section 不是 dict，不转的话 json.dumps 会抛
+                #「Object of type Section is not JSON serializable」。
+                d["sections"] = [s.to_json() if isinstance(s, Section) else _sorted(s)
+                                 for s in v]
             elif f.name == "video":
                 d["video"] = (v.to_json() if isinstance(v, VideoSpec) else _sorted(v))
             elif isinstance(v, dict):
@@ -411,6 +425,18 @@ class ChartSpec:
         for i, s in enumerate(secs):
             if s.end < s.start:
                 out.append(f"第 {i} 段 end < start：{s.start}..{s.end}")
+        # 用户手写段表时要在**原始**表上查：`section_list()` 已经
+        # 把缝填平，在它上面查等于白查。只查尾部会漏掉
+        # 「开头空一段」（如 sections=[{"start":16,"end":64,...}]）。
+        raw = [s if isinstance(s, Section) else Section.from_json(s)
+               for s in (self.sections or [])]
+        if raw and raw[0].start > 1e-6:
+            out.append(f"第 0 段从 {raw[0].start:g} 拍才开始，"
+                       " 前面的拍子会没有编排")
+        for a, b in zip(raw, raw[1:]):
+            if abs(a.end - b.start) > 1e-6:
+                out.append(f"第 {a.start:g}..{a.end:g} 段与从 {b.start:g} 拍开始的"
+                           " 下一段不连续（有缝或重叠）")
         if secs and self.last_beat and secs[-1].end < self.last_beat - 1e-6:
             out.append(f"末段只写到 {secs[-1].end:g} 拍，但 last_beat={self.last_beat:g}"
                        "（后面的谱会「没写完」）")

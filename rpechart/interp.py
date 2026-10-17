@@ -107,30 +107,34 @@ def value_at(events: _t.Sequence, time: _t.Any, default: _t.Any = 0.0) -> _t.Any
     if not events:
         return default
     t = Beat.of(time)
-    # 取全部 startTime 键，顺带检测是否已排序；未排序就整体重排，使调用方
-    # 不必知道「必须预排序」这个前置条件（旧实现承诺过却未做到，会静默取错值）。
-    starts = [e.startTime.frac for e in events]
-    if any(starts[i] > starts[i + 1] for i in range(len(starts) - 1)):
-        order = sorted(
-            range(len(events)),
-            key=lambda i: (starts[i], events[i].endTime.frac),
-        )
+    # 入口按 (startTime, endTime) **联合键**检测乱序并整体重排。只比 startTime
+    # 会漏掉「起点相同、终点乱序」的输入，而那正是旧实现的 bug：docstring 承诺
+    # 过恒等，实际会静默取错值。
+    keys = [(e.startTime.frac, e.endTime.frac) for e in events]
+    if any(keys[i] > keys[i + 1] for i in range(len(keys) - 1)):
+        order = sorted(range(len(events)), key=lambda i: keys[i])
         events = [events[i] for i in order]
-        starts = [starts[i] for i in order]
+        keys = [keys[i] for i in order]
+    starts = [k[0] for k in keys]
     # 二分到最后一个 startTime <= t 的位置；只有下标 <= idx 的事件可能覆盖 t。
-    # 旧实现只在该位置前后各看 8 个事件，已排序的重叠输入（k>=9）会漏查。
     idx = bisect.bisect_right(starts, t.frac) - 1
     if idx < 0:
         return default
-    fallback = None
+    # 前缀最大 endTime 是非降序列，二分出「第一个 endTime > t 的下标」即为覆盖
+    # t 的那个事件。旧实现每次都从 0 线性回扫到 idx（O(n)），事件链长时是热路径。
+    prefmax: list = []
+    running = None
+    for _start, end in keys:
+        running = end if running is None or end > running else running
+        prefmax.append(running)
+    hit = bisect.bisect_right(prefmax, t.frac, 0, idx + 1)
+    if hit <= idx:
+        return interpolate_value(events[hit], t)
+    # 没有任何事件「从 t 起还继续有效」时，才接受 t == endTime 的事件，
+    # 并取下标最小的那个（保持旧语义）。
     for i in range(idx + 1):
-        event = events[i]
-        if t < event.endTime:
-            return interpolate_value(event, t)
-        if fallback is None and t == event.endTime:
-            fallback = event
-    if fallback is not None:
-        return interpolate_value(fallback, t)
+        if t == events[i].endTime:
+            return interpolate_value(events[i], t)
     return default
 
 

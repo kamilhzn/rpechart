@@ -3,57 +3,305 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>rpechart · 程序化制谱</title>
+<meta name="color-scheme" content="dark">
+<title>rpechart studio · 参数 → 谱面 → 画面</title>
+<!-- 内联 favicon：离线可用，也避免浏览器每次开页都请求 /favicon.ico 吃一个 404。 -->
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA90lEQVR4nO2XTwuCQBDF14eniL5CUBh48NTdD+/dU4egMOiTFHMwVtnZnakciXygC+vw3m//gEy2Wm8ebkblocmirCYJu55PaYCirNz9dpkEgLzHELAKJ5H3eHdhFc5BwDI8BAE3s7AAuC+pbrvB+PER1G33erThGghIimKG/rfmuBcHqwA4iFB4P0p3AakCf1WcKbdyCQSSFQxEzFwCrQKImXKrl94HiKoY01SI5D5AA+Cbam88BwEtgDY8BQxnoBgw3MzCAuD+/Qhy7sM7f7af3AHQi5qF7e5gFkpZfYOCftIKwg8fAFhAjMNJWag7tmxOgwCWegJsqHGpMrpUXAAAAABJRU5ErkJggg==">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<header class="top">
-  <div class="brand"><b>rpechart</b><span>参数 → 谱面 → 画面</span></div>
-  <div class="meta" id="meta">…</div>
-  <button id="btn-gen" class="primary">生成 / 重渲</button>
-</header>
+<!-- 渲染前可见的骨架：JS 挂了也能看出「在加载」而不是白屏 -->
+<div class="boot" id="boot">
+  <div class="boot-mark"></div>
+  <p class="boot-text">正在连接 rpechart 后端…</p>
+</div>
 
-<main class="split">
-  <section class="pane left">
-    <h2>参数 <small>spec.json（唯一输入）</small></h2>
-    <div class="quick" id="quick"></div>
-    <details open><summary>原始 JSON</summary>
-      <textarea id="spec" spellcheck="false"></textarea>
-    </details>
-    <div class="row">
-      <button id="btn-apply">应用 JSON 并重生成</button>
-      <button id="btn-reload" class="ghost">丢弃改动</button>
-      <button id="btn-template" class="ghost">插入模板</button>
+<div class="app" id="app" hidden>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 20V7m0 0 5 5 5-6 6 8" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="square" stroke-linejoin="miter"/>
+        <circle cx="4" cy="20" r="1.6" fill="currentColor"/>
+      </svg>
+      <b>rpechart</b><span class="brand-sub">studio</span>
     </div>
-    <p class="hint" id="spec-err"></p>
 
-    <h2>观察</h2>
-    <div id="summary" class="summary"></div>
-    <h3>校验报告</h3>
-    <div id="report" class="report"></div>
-    <h3>分线物量</h3>
-    <table id="lines" class="lines"></table>
-  </section>
-
-  <section class="pane right">
-    <h2>画面 <small>与导出的 MP4 同一渲染器</small></h2>
-    <div class="controls">
-      <button id="btn-play">▶ 播放</button>
-      <input id="time" type="range" min="0" max="60" step="0.01" value="0">
-      <span id="time-label" class="mono">0.000s</span>
-      <label><input id="hud" type="checkbox" checked> HUD</label>
-      <select id="size">
-        <option value="960x540" selected>960×540</option>
-        <option value="1280x720">1280×720</option>
-        <option value="1920x1080">1920×1080</option>
-      </select>
+    <div class="doc">
+      <label class="sr-only" for="doc-name">谱面名</label>
+      <input id="doc-name" class="doc-name" spellcheck="false" autocomplete="off"
+             value="…" aria-label="谱面名">
+      <span class="doc-meta" id="doc-meta">—</span>
     </div>
-    <div class="stage"><img id="frame" alt="预览"></div>
-    <details><summary>当前 chart.json（RPE 风格原文）</summary>
-      <pre id="chart" class="code"></pre>
-    </details>
-  </section>
-</main>
+
+    <div class="caps" id="caps" role="status" aria-label="后端能力"></div>
+
+    <div class="top-actions">
+      <button id="btn-help" class="btn icon" title="快捷键 (?)" aria-label="快捷键">?</button>
+      <button id="btn-discard" class="btn ghost" disabled title="放弃本地改动，从服务器重新读取">丢弃改动</button>
+      <button id="btn-export" class="btn signal" title="导出 MP4 (E)">导出 MP4</button>
+      <button id="btn-gen" class="btn primary" title="生成 / 重渲 (G)">生成 <kbd>G</kbd></button>
+    </div>
+  </header>
+
+  <main class="workspace">
+
+    <!-- ───────────────────────── 左：参数 ───────────────────────── -->
+    <aside class="rail" id="rail">
+      <div class="tabs" role="tablist" aria-label="参数来源">
+        <button class="tab is-on" role="tab" aria-selected="true" aria-controls="pane-form" data-tab="form">参数</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="pane-json" data-tab="json">JSON</button>
+        <span class="tab-flex"></span>
+        <button id="btn-template" class="tab tab-action" title="插入一份最小可用模板">模板</button>
+      </div>
+
+      <div class="rail-body">
+        <section class="tabpane is-on" id="pane-form" data-pane="form" role="tabpanel">
+          <div class="fields" id="form-fields"></div>
+          <p class="rail-note" id="form-note"></p>
+        </section>
+
+        <section class="tabpane" id="pane-json" data-pane="json" role="tabpanel">
+          <div class="editor" id="editor">
+            <div class="gutter" id="gutter" aria-hidden="true">1</div>
+            <textarea id="spec" spellcheck="false" autocomplete="off" wrap="off"
+                      aria-label="spec.json 原文"></textarea>
+          </div>
+          <div class="editor-bar">
+            <span class="json-state" id="json-state">未改动</span>
+            <span class="tab-flex"></span>
+            <button id="btn-apply" class="btn tiny" title="应用 JSON 并重生成 (Ctrl+Enter)">应用</button>
+          </div>
+          <p class="rail-note">这一栏是权威输入：改完点「应用」或按 <kbd>Ctrl</kbd>+<kbd>Enter</kbd>。参数页写回的也是这里。</p>
+        </section>
+      </div>
+    </aside>
+
+    <!-- ───────────────────────── 中：舞台 ───────────────────────── -->
+    <section class="center">
+      <div class="stage-head">
+        <span class="stage-title">画面 <em>与导出的 MP4 同一渲染器</em></span>
+        <span class="tab-flex"></span>
+        <label class="sw" title="叠加 HUD（combo / 分数 / 曲名）">
+          <input type="checkbox" id="hud" checked><span>HUD</span>
+        </label>
+        <label class="sw" title="叠加参考网格">
+          <input type="checkbox" id="grid"><span>网格</span>
+        </label>
+        <label class="sw" id="se-switch" title="播放时叠加打击音" hidden>
+          <input type="checkbox" id="se-preview" checked><span>SE</span>
+        </label>
+        <label class="pick">
+          <span class="sr-only">预览分辨率</span>
+          <select id="size">
+            <option value="640x360">640×360</option>
+            <option value="960x540" selected>960×540</option>
+            <option value="1280x720">1280×720</option>
+            <option value="1920x1080">1920×1080</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="stage-wrap">
+        <div class="stage" id="stage" tabindex="0" role="img"
+             aria-label="谱面预览帧">
+          <img id="frame" alt="" draggable="false">
+          <div class="stage-empty" id="stage-empty" hidden>
+            <b>还没有画面</b><span>左侧改参数，然后按「生成」。</span>
+          </div>
+          <div class="stage-load" id="stage-load" hidden><span class="spin"></span></div>
+        </div>
+        <p class="stage-foot">
+          <span class="mono" id="stage-time">0.000s</span>
+          <span class="sep">/</span>
+          <span class="mono" id="frame-stat">—</span>
+          <span class="tab-flex"></span>
+          <span class="stage-hint" id="asset-hint" hidden></span>
+        </p>
+      </div>
+
+      <div class="banner" id="banner" hidden role="alert"></div>
+    </section>
+
+    <!-- ───────────────────────── 右：检查器 ───────────────────────── -->
+    <aside class="inspector">
+      <div class="tabs" role="tablist" aria-label="检查器">
+        <button class="tab is-on" role="tab" aria-selected="true" aria-controls="pane-issues" data-itab="issues">校验
+          <span class="pill" id="pill-issues">0</span></button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="pane-lines" data-itab="lines">分线</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="pane-info" data-itab="info">概览</button>
+      </div>
+      <div class="insp-body">
+        <section class="tabpane is-on" id="pane-issues" data-ipane="issues" role="tabpanel">
+          <div class="filters" id="sev-filters">
+            <button class="chip is-on" data-sev="ERROR">错误</button>
+            <button class="chip is-on" data-sev="WARNING">警告</button>
+            <button class="chip is-on" data-sev="CAUTION">提示</button>
+          </div>
+          <div class="issues" id="issues"></div>
+        </section>
+
+        <section class="tabpane" id="pane-lines" data-ipane="lines" role="tabpanel">
+          <div class="lines" id="lines"></div>
+        </section>
+
+        <section class="tabpane" id="pane-info" data-ipane="info" role="tabpanel">
+          <dl class="kv" id="info"></dl>
+          <div class="chart-block">
+            <button class="disclose" id="btn-chart" aria-expanded="false">
+              <span class="caret"></span>chart.json（RPE 风格原文）
+            </button>
+            <pre class="code" id="chart" hidden></pre>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ───────────────────────── 下：时间轴 ───────────────────────── -->
+  <footer class="timeline" id="timeline">
+    <div class="transport">
+      <button id="btn-play" class="btn icon big" title="播放 / 暂停 (空格)" aria-label="播放" aria-pressed="false">
+        <svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3l9 5-9 5z" fill="currentColor"/></svg>
+        <svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M4 3h3v10H4zM9 3h3v10H9z" fill="currentColor"/></svg>
+      </button>
+      <button id="btn-home" class="btn icon" title="回到开头 (Home)" aria-label="回到开头">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h2v10H4zM13 3v10L6 8z" fill="currentColor"/></svg>
+      </button>
+      <button id="btn-end" class="btn icon" title="跳到结尾 (End)" aria-label="跳到结尾">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3h2v10h-2zM3 3l7 5-7 5z" fill="currentColor"/></svg>
+      </button>
+      <span class="tc mono" id="timecode">00:00.000</span>
+      <span class="tc-sub mono" id="tc-sub">拍 0.0</span>
+      <span class="tab-flex"></span>
+      <span class="tl-ops" role="group" aria-label="时间轴操作">
+        <button id="btn-zoom-out" class="btn icon tiny" title="缩小时间轴 (-)" aria-label="缩小时间轴">−</button>
+        <span class="tc-sub mono" id="tl-zoom" aria-live="polite"></span>
+        <button id="btn-zoom-in" class="btn icon tiny" title="放大时间轴 (+)" aria-label="放大时间轴">+</button>
+        <button id="btn-zoom-fit" class="btn ghost tiny" title="适配整条谱面 (0)" aria-label="适配整条谱面">适配</button>
+      </span>
+      <label class="pick tiny">
+        <span class="sr-only">帧率</span>
+        <select id="fps">
+          <option value="30">30 fps</option>
+          <option value="60" selected>60 fps</option>
+        </select>
+      </label>
+      <span class="tc-sub mono" id="tl-clock">—</span>
+    </div>
+    <div class="tl-canvas-wrap" id="tl-wrap">
+      <canvas id="tl" tabindex="0" role="slider" aria-label="时间轴：上为刻度与胶片，下为每条判定线的音符轨"
+              aria-valuemin="0" aria-valuenow="0" aria-valuetext="0.000 秒"></canvas>
+    </div>
+  </footer>
+
+  <div class="statusbar">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">就绪</span>
+    <span class="tab-flex"></span>
+    <span class="mono dim" id="status-path">—</span>
+  </div>
+</div>
+
+<!-- ───────────────────────── 浮层：快捷键 ───────────────────────── -->
+<div class="modal" id="modal-help" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <header><h2 id="help-title">快捷键</h2><button class="btn icon" data-close aria-label="关闭">✕</button></header>
+    <div class="modal-body keys">
+      <div><kbd>空格</kbd><span>播放 / 暂停</span></div>
+      <div><kbd>←</kbd><kbd>→</kbd><span>前后一帧（<kbd>Shift</kbd> 为 1 秒）</span></div>
+      <div><kbd>J</kbd><kbd>L</kbd><span>前后 1 秒</span></div>
+      <div><kbd>Home</kbd><kbd>End</kbd><span>跳到开头 / 结尾</span></div>
+      <div><kbd>G</kbd><span>生成 / 重渲</span></div>
+      <div><kbd>E</kbd><span>导出 MP4</span></div>
+      <div><kbd>H</kbd><span>开关 HUD</span></div>
+      <div><kbd>F</kbd><span>刷新胶片</span></div>
+      <div><kbd>Ctrl</kbd>+<kbd>Enter</kbd><span>应用 JSON 并重生成</span></div>
+      <div><kbd>滚轮</kbd><span>时间轴缩放（以指针为锚点）</span></div>
+      <div><kbd>Alt</kbd>+<kbd>拖拽</kbd><span>平移时间轴 <em>（双击复位）</em></span></div>
+      <div><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd><span>放大 / 缩小 / 复位</span></div>
+      <div><kbd>PgUp</kbd><kbd>PgDn</kbd><span>时间轴左右翻页</span></div>
+      <div><kbd>?</kbd><span>打开 / 关闭本页</span></div>
+      <div><kbd>Esc</kbd><span>关闭浮层</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────── 浮层：导出 ───────────────────────── -->
+<div class="modal" id="modal-export" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="export-title">
+    <header><h2 id="export-title">导出 MP4</h2><button class="btn icon" data-close aria-label="关闭">✕</button></header>
+    <div class="modal-body">
+      <div class="grid2">
+        <label class="fld"><span>分辨率</span>
+          <select id="ex-size">
+            <option value="1280x720" selected>1280×720</option>
+            <option value="960x540">960×540</option>
+            <option value="1920x1080">1920×1080</option>
+          </select></label>
+        <label class="fld"><span>帧率</span>
+          <select id="ex-fps">
+            <option value="30">30</option>
+            <option value="60" selected>60</option>
+          </select></label>
+        <label class="fld"><span>起始（秒）</span><input id="ex-start" type="number" step="0.1" value="0"></label>
+        <label class="fld"><span>结束（秒，留空=内容末尾）</span><input id="ex-end" type="number" step="0.1" placeholder="自动"></label>
+        <label class="fld"><span>质量 CRF（越小越清晰）</span>
+          <select id="ex-crf">
+            <option value="16">16 · 很高</option>
+            <option value="18" selected>18 · 高</option>
+            <option value="23">23 · 标准</option>
+            <option value="28">28 · 小体积</option>
+          </select></label>
+        <label class="fld"><span>编码速度</span>
+          <select id="ex-preset">
+            <option value="veryfast">veryfast</option>
+            <option value="medium" selected>medium</option>
+            <option value="slow">slow</option>
+          </select></label>
+      </div>
+      <label class="fld"><span>音频（可选，路径或留空）</span>
+        <input id="ex-audio" type="text" placeholder="例如 song.mp3" autocomplete="off"></label>
+      <label class="fld"><span>输出路径</span>
+        <input id="ex-out" type="text" value="build/web_export.mp4" autocomplete="off"></label>
+
+      <div class="se-box">
+        <div class="grid2">
+          <label class="fld"><span>打击音效（SE）</span>
+            <select id="ex-se-mode">
+              <option value="none" selected>不加音效</option>
+              <option value="auto">自动查找官方 SE</option>
+              <option value="dir">指定 SE 目录</option>
+            </select></label>
+          <label class="fld"><span>打击音音量</span>
+            <input id="ex-se-volume" type="number" min="0" max="4" step="0.05" value="0.532"></label>
+        </div>
+        <label class="fld" id="ex-se-dir-row" hidden><span>SE 目录</span>
+          <input id="ex-se-dir" type="text" placeholder="PhiEdit/Resources/SE" autocomplete="off"></label>
+        <p class="hint se-hint" id="ex-se-hint">蓝键 tap · 红键 flick · 黄键 drag（Hold 用蓝键），与谱面音符对齐后混进音轨。</p>
+      </div>
+      <label class="sw"><input type="checkbox" id="ex-hud" checked><span>写入 HUD</span></label>
+
+      <div class="prog" id="ex-prog" hidden>
+        <div class="prog-bar"><i id="ex-bar"></i></div>
+        <div class="prog-meta">
+          <span id="ex-state">准备中…</span>
+          <span class="tab-flex"></span>
+          <span class="mono" id="ex-num">—</span>
+        </div>
+      </div>
+      <p class="modal-msg" id="ex-msg"></p>
+    </div>
+    <footer>
+      <button class="btn ghost" data-close>关闭</button>
+      <button class="btn ghost" id="ex-cancel" hidden>取消导出</button>
+      <button class="btn primary" id="ex-go">开始导出</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
 <script src="/static/app.js"></script>
 </body>

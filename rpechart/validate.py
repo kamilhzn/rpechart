@@ -251,15 +251,16 @@ def _validate_structure(chart: Chart) -> list[Issue]:
                     line=li,
                 )
             )
-        if line.father >= len(chart.judgeLineList):
-            issues.append(
-                Issue(ERROR, "BadFather", f"父线索引 {line.father} 不存在", line=li)
-            )
+        # 父线越界只由 _validate_father 报一次：这里曾重复报同一条 BadFather
+        # （father=99 会得到两条一模一样的 issue）。
         # 线的 Group 是 judgeLineGroup 的**下标**，越界等于引用了不存在的组名。
-        # 实测 601 条真实判定线全部落在范围内；本库早期默认写空数组，
-        # 会让每条线默认的 Group=0 悬空（按分组筛选时一条线都列不出来）。
-        if not isinstance(line.Group, int) or not (
-            0 <= line.Group < len(chart.judgeLineGroup)
+        # 实测 601 条真实判定线全部落在范围内。
+        # 但 judgeLineGroup 为**空**时跳过：RPE 本身能正常打开缺这个键的谱
+        # （`Chart.from_json` 会给出 `[]`），因此每条线默认的 Group=0 都被
+        # 误报成越界是假错误；真正的约束是「组表非空且下标落在表内」。
+        if chart.judgeLineGroup and (
+            not isinstance(line.Group, int)
+            or not 0 <= line.Group < len(chart.judgeLineGroup)
         ):
             issues.append(
                 Issue(
@@ -339,7 +340,11 @@ def _validate_line(
                 )
             else:
                 ms = _beat_ms(timing, note.startTime, note.endTime)
-                if ms < 40.0:
+                # 40.0ms 是**上限内的**合法值：BPM=11 时 40ms 换算回拍正好是
+                # 11/1500，beat_to_second 会算出 39.99999999999999，裸比较会
+                # 把「刚好读得出来」误报成「读不出来」。与 618/662 行一致，
+                # 比较前先减掉 _MS_EPS。
+                if ms < 40.0 - _MS_EPS:
                     issues.append(
                         Issue(
                             CAUTION,
@@ -434,6 +439,10 @@ def _validate_line(
                 prev_linear, prev_total = linear_counts.get(kind, (0, 0))
                 linear_counts[kind] = (prev_linear + linear, prev_total + len(moving))
 
+    # 注意：这里**没有**分母下限（例如 total >= 4 才判比例）。曾经考虑加下限来
+    # 治「单次移动也被开火」，但既有用例
+    # tests/test_validate.py::constant_events_do_not_trigger_too_many_linear 明确
+    # 要求 total == 1 时线性占比 1/1 必须开火，所以这条行为按现状冻结。
     for kind, (linear, total) in linear_counts.items():
         if total and linear / total > 0.25:
             issues.append(
@@ -471,8 +480,15 @@ def _validate_events(
     song_duration: _t.Optional[float],
 ) -> list[Issue]:
     issues: list[Issue] = []
-    ordered = sorted(events, key=lambda e: e.startTime.frac)
-    for ei, event in enumerate(ordered):
+    # 报错时 event_index 必须指回**磁盘上**的事件下标（docstring 与
+    # Issue.location 都这么承诺），不是排序后的位置。
+    indexed = sorted(
+        enumerate(events), key=lambda pair: pair[1].startTime.frac
+    )
+    ordered = [e for _, e in indexed]
+    indexes = [k for k, _ in indexed]
+    for pos, event in enumerate(ordered):
+        ei = indexes[pos]
         if event.endTime <= event.startTime:
             issues.append(
                 Issue(
@@ -513,8 +529,9 @@ def _validate_events(
                         )
                     )
                     break
-        # 同层同类事件重叠
-        nxt = ordered[ei + 1] if ei + 1 < len(ordered) else None
+        # 同层同类事件重叠。注意邻居要按**排序后位置** pos 取，不能用磁盘
+        # 下标 ei —— 两者只在事件本身就按时间排好时才相等。
+        nxt = ordered[pos + 1] if pos + 1 < len(ordered) else None
         if nxt is not None and event.endTime > nxt.startTime:
             issues.append(
                 Issue(
@@ -545,7 +562,12 @@ def _validate_note_overlap(line: JudgeLine, li: int, timing: Timing) -> list[Iss
     * 两个 Hold：``max(start) < min(end)`` 才算真的重叠。
     """
     issues: list[Issue] = []
-    notes = sorted(line.notes, key=lambda n: (n.startTime.frac, n.positionX))
+    # 带上原始下标：note_index 要能直接索引回 line.notes（与
+    # _validate_note_sequence 同一套写法）。
+    indexed = sorted(
+        enumerate(line.notes), key=lambda pair: (pair[1].startTime.frac, pair[1].positionX)
+    )
+    notes = [n for _, n in indexed]
     for i in range(len(notes)):
         a = notes[i]
         # 扫描窗口必须按 a 的「最晚影响范围」算：一个 4 拍的 Hold 后面紧跟
@@ -577,7 +599,8 @@ def _validate_note_overlap(line: JudgeLine, li: int, timing: Timing) -> list[Iss
                 code, msg = "TapHoldOverlapped", "Tap 落在 Hold 的判定区间内"
             if collide:
                 issues.append(
-                    Issue(ERROR, code, msg, line=li, note_index=i, time=a.startTime)
+                    Issue(ERROR, code, msg, line=li,
+                          note_index=indexed[i][0], time=a.startTime)
                 )
     return issues
 
@@ -652,11 +675,20 @@ def _validate_note_sequence(line: JudgeLine, li: int, timing: Timing) -> list[Is
             # holds 按 startTime 升序，后面的 b 只会更晚，所以 break 安全。
             if b.startTime - a.endTime > Beat(4):
                 break
-            if a.positionX * b.positionX <= 0:
+            # 按「道号」判定同 X，不用符号积：任一 X 为 0（判定线中心那条道）
+            # 时符号积恒为 0，会把中心道上的粘连全部漏掉。
+            if a.positionX == 0.0 or b.positionX == 0.0:
+                same_lane = a.positionX == b.positionX
+            else:
+                same_lane = (a.positionX > 0) == (b.positionX > 0)
+            if not same_lane:
                 continue  # X 异号（跨过判定线中心）不算
             gap = b.startTime - a.endTime
-            if gap <= Beat(0):
-                continue  # 真重叠由 _validate_note_overlap 报错
+            # gap == 0 就是「首尾严丝合缝」，正是 ``Hold Sticked?`` 本身；
+            # 旧实现把 gap <= 0 整个跳过，于是最典型的那种粘连什么都不报。
+            # 真重叠（gap < 0）才交给 _validate_note_overlap 报错。
+            if gap < Beat(0):
+                continue
             # 首尾相接：间隔小到读不出来
             touch_ms = _beat_ms(timing, a.endTime, b.startTime)
             if touch_ms <= 40.0 + _MS_EPS:
@@ -703,8 +735,11 @@ def _validate_out_of_screen(line: JudgeLine, li: int, timing: Timing) -> list[Is
         # 真实谱面不依赖这个兜底：617 条判定线 100% 显式给出 speedEvents，且首
         # 事件都在第 0 拍。
         line_speed = float(value_at_resolved(speed_events, note.startTime, 1.0))
-        rate = 120.0 * line_speed * abs(note.speed)
-        travel = 900.0 / rate if rate > _MS_EPS else float("inf")
+        # 线速可以为负（音符向上飞，见 JudgeLineBuilder.line_speed 的 docstring）：
+        # 那是有效速率，取绝对值。旧实现让负线速算出一个负的 travel，却仍然
+        # 走到「永远」分支去写消息，等于把「快」报成「永远到不了」。
+        rate = 120.0 * abs(line_speed) * abs(note.speed)
+        travel = 900.0 / rate if rate > 0.0 else float("inf")
         if visible < travel:
             need = "永远" if travel == float("inf") else f"约需 {travel:.3f}s"
             issues.append(

@@ -90,8 +90,10 @@ class Beat:
         #: 载入时的原始 ``[a, b, c]`` 字面量（有则原样写回，否则为 None）
         self.raw: _t.Optional[list[int]] = None
         if isinstance(value, (list, tuple)) and len(value) >= 3:
-            # 记住字面量：RPE 不约分，[2,0,4] 与 [2,0,1] 数值相同但写回应当一致
-            self.raw = [int(value[0]), int(value[1]), int(value[2]) or 1]
+            # 记住字面量：RPE 不约分，[2,0,4] 与 [2,0,1] 数值相同但写回应当一致。
+            # 分母 **原样保留**，不能写 `int(value[2]) or 1`：c=0 且 b=0 是 RPE 的
+            # 合法写法（按分母 1 处理），写回时被改成 [2,0,1] 就是改了别人的文件。
+            self.raw = [int(value[0]), int(value[1]), int(value[2])]
 
     # ---------------------------------------------------------------- 构造
     @classmethod

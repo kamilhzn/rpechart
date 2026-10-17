@@ -28,7 +28,7 @@
 from __future__ import annotations
 
 import typing as _t
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .features import ROLE_B, ROLE_N, ROLE_R, ROLE_RB, BeatFeatures
 from .lanes import GenNote, LaneGrid
@@ -164,7 +164,12 @@ class NotePlanner:
     """
 
     grid: LaneGrid = field(default_factory=LaneGrid)
-    plans: dict = field(default_factory=lambda: dict(DEFAULT_PLANS))
+    # 必须逐个复制 RolePlan：`dict(DEFAULT_PLANS)` 是浅拷贝，两个 planner
+    # 会共享同一个模块级 RolePlan 对象，改一个等于改全部（WebUI 进程内反复
+    # regenerate 会累积污染）。
+    plans: dict = field(
+        default_factory=lambda: {k: replace(v) for k, v in DEFAULT_PLANS.items()}
+    )
     #: 重拍判定：低频 >= 该值且是局部极大。
     accent_threshold: float = 0.55
     #: 中性段：每隔几拍出一个稀疏 Tap（`0` 表示不额外加）。
@@ -271,11 +276,52 @@ class NotePlanner:
                             int(plan.line), 0.0))
 
         # ---- Hold：**叠加**在 Tap 之上，绝不替换。
+        holds: list[GenNote] = []
         for sec in sections:
-            out += self.plan_holds(f, sec)
+            holds += self.plan_holds(f, sec)
+        out += holds
 
         out.sort(key=lambda n: (n.t, n.line, n.x))
-        return out
+        return self._cap(out, sections)
+
+    def _cap(
+        self, notes: list[GenNote], sections: _t.Sequence[Section]
+    ) -> list[GenNote]:
+        """把超过 :attr:`max_notes_per_section` 的段抽稀到上限以内。
+
+        逐拍抽稀（而不是「从尾巴砍掉」）：保留的稀疏版仍然覆盖整段，
+        不会出现「后半段没有音符」。上限 <= 0 表示不限制。
+        """
+        limit = int(self.max_notes_per_section)
+        if limit <= 0:
+            return notes
+        # 段按 start 升序且互不重叠（normalize_sections 的保证），所以单次扫描
+        # 就能把音符分到所属段；段外的音符（例如 `"at"` 写在段边界上的 Hold）
+        # 原样保留，不参与抽稀。
+        bounds = [
+            (float(s.start), float(s.end)) for s in sections if s.end > s.start
+        ]
+        if not bounds:
+            return notes
+        bucketed: list[list[GenNote]] = [[] for _ in bounds]
+        outside: list[GenNote] = []
+        k = 0
+        for n in notes:
+            while k < len(bounds) and n.t >= bounds[k][1]:
+                k += 1
+            if k < len(bounds) and bounds[k][0] <= n.t < bounds[k][1]:
+                bucketed[k].append(n)
+            else:
+                outside.append(n)
+        kept: list[GenNote] = list(outside)
+        for group in bucketed:
+            if len(group) <= limit:
+                kept.extend(group)
+                continue
+            step = (len(group) + limit - 1) // limit
+            kept.extend(group[::step][:limit])
+        kept.sort(key=lambda n: (n.t, n.line, n.x))
+        return kept
 
     # ------------------------------------------------------------ Hold
     def plan_holds(self, f: BeatFeatures, sec: Section) -> list[GenNote]:
@@ -316,9 +362,9 @@ class NotePlanner:
                 continue
             t = float(spec.get("from", sec.start))
             t_to = float(spec.get("to", sec.end))
-            every = float(spec.get("every", 8.0))
-            if every <= 0:
-                continue
+            # 下限 1 拍：旧实现只挡 every <= 0，于是 {"every": 0.001}
+            # 会在 1000 拍里生成约 1e6 个 Hold，直接把内存打爆。
+            every = max(float(spec.get("every", 8.0)), 1.0)
             while t < t_to and (not f.n or t < f.n):
                 out.append(GenNote(t, "hold", place(t), line, dur))
                 t += every

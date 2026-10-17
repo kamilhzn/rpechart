@@ -30,12 +30,19 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import threading
 import typing as _t
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .audio import ffmpeg_path
+from .audio import (
+    SE_TRACK_PREFIX,
+    SE_VOLUME,
+    build_hitsound_track,
+    ffmpeg_path,
+    resolve_se_sources,
+)
 
 __all__ = [
     "VideoInfo",
@@ -44,6 +51,8 @@ __all__ = [
     "render_chart_video",
     "ffmpeg_available",
     "builtin_renderer",
+    "build_hitsound_track",
+    "SE_TRACK_PREFIX",
 ]
 
 #: 一帧默认编码多少路 rgb24 字节之外的余量（留空即可）
@@ -386,7 +395,8 @@ def _load_renderer_module(path: Path):
 def render_chart_video(chart_path, out_path, *, fps=DEFAULT_FPS, size=DEFAULT_SIZE,
                        start=0.0, end=None, audio=None, cover=None, hud=None,
                        progress=None, renderer=None, grid=False,
-                       extra_args=None, video=None, blur=None, dim=None) -> VideoInfo:
+                       extra_args=None, video=None, blur=None, dim=None,
+                       hitsounds=None, se_volume=SE_VOLUME) -> VideoInfo:
     """把一张 ``chart.json`` 直接渲染成 mp4。
 
     参数
@@ -424,6 +434,17 @@ def render_chart_video(chart_path, out_path, *, fps=DEFAULT_FPS, size=DEFAULT_SI
         指定渲染器文件（高级用法；默认按 :func:`_locate_renderer` 找）。
     grid
         是否画参考网格。默认 ``False``（视频里网格很碍眼）。
+    hitsounds
+        **打击音**：PhiEdit 官方 SE 目录（含 ``tap.mp3`` / ``flick.mp3`` /
+        ``drag.mp3``），或 ``{类型: 路径}`` 映射；``None``（默认）完全按老行为
+        编码，输出字节与不带打击音时一致。给了就先用
+        :func:`rpechart.audio.build_hitsound_track` 把「谱面音符」变成打击音轨，
+        再连同 ``audio=`` 一起交给 ffmpeg。
+    se_volume
+        打击音音量，默认 0.532（PhiEdit 的 ``SEVolume``）。
+
+    ``hitsounds`` 不可用（目录不存在 / 没有 ffmpeg）时**不会让导出失败**：往
+    stderr 打一行原因，然后退回不带打击音的老路径。
 
     返回
     ----
@@ -505,6 +526,30 @@ def render_chart_video(chart_path, out_path, *, fps=DEFAULT_FPS, size=DEFAULT_SI
             if stream is not None:                          # pragma: no cover
                 stream.close()
 
-    info = encode_frames(_frames(), out_path, fps=fps, size=(w, h), audio=audio,
-                         progress=progress, extra_args=extra_args)
+    mix_path = None
+    if hitsounds is not None:
+        # 打击音是**可选增强**：任何失败都退回无 SE 的老路径，绝不让导出崩。
+        try:
+            sources = resolve_se_sources(hitsounds)
+            if not sources:
+                print("警告：找不到打击音素材（%s），跳过音效" % (hitsounds,),
+                      file=sys.stderr)
+            else:
+                mix_path = build_hitsound_track(
+                    chart_path, sources=sources, out_path=None,
+                    volume=se_volume, song=audio, duration=end - start,
+                    start=start, end=end, ffmpeg=None)
+        except Exception as exc:                        # noqa: BLE001 - 刻意兜底
+            print("警告：打击音混音失败，跳过音效：%s" % (exc,), file=sys.stderr)
+            mix_path = None
+    try:
+        info = encode_frames(_frames(), out_path, fps=fps, size=(w, h),
+                             audio=mix_path if mix_path else audio,
+                             progress=progress, extra_args=extra_args)
+    finally:
+        if mix_path:
+            try:
+                os.remove(mix_path)
+            except OSError:                             # pragma: no cover - 防御
+                pass
     return info

@@ -27,6 +27,7 @@
 
 from __future__ import annotations
 
+import bisect
 import typing as _t
 from dataclasses import dataclass
 
@@ -105,10 +106,18 @@ class LaneGrid:
     def index(self, x: float) -> int:
         """把连续坐标吸附到最近轨道的**索引**（越界钳到边界）。
 
-        与 `_lane_index` 等价：`round((x - lanes[0]) / step)`。
+        直接在 `lanes` 上做最近邻，不按 `step` 反推下标：自定义网格的间距
+        未必等于 `step`（例如 `lanes=[-100, 0, 100]` 配默认 `step=135`），
+        `round((x - lanes[0]) / step)` 会把 x=100 算成下标 1（吸到 0.0）。
         """
-        i = int(round((float(x) - self.lanes[0]) / self.step))
-        return max(0, min(self.n - 1, i))
+        value = float(x)
+        pos = bisect.bisect_left(self.lanes, value)
+        if pos <= 0:
+            return 0
+        if pos >= self.n:
+            return self.n - 1
+        before, after = self.lanes[pos - 1], self.lanes[pos]
+        return pos if (after - value) < (value - before) else pos - 1
 
     def lane(self, x: float) -> float:
         """把连续坐标吸附到最近轨道的**坐标**（落点设计）。"""

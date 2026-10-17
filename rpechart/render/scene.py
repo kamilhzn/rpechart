@@ -13,13 +13,14 @@ class NoteDraw:
     """一个音符（Tap / Flick / Drag）的绘制指令。全部是**屏幕像素**。"""
 
     __slots__ = ("kind", "x", "y", "angle", "width", "height", "alpha", "color",
-                 "above", "fake", "x_scale", "texture")
+                 "above", "fake", "x_scale", "texture", "texture_mh", "multi")
 
     def __init__(self, kind: int, x: float, y: float, *, angle: float = 0.0,
                  width: float, height: float, alpha: float = 1.0,
                  color: _t.Tuple[int, int, int] = (255, 255, 255),
                  above: bool = True, fake: bool = False, x_scale: float = 1.0,
-                 texture: str = "") -> None:
+                 texture: str = "", texture_mh: str = "",
+                 multi: bool = False) -> None:
         self.kind = int(kind)
         self.x = float(x)
         self.y = float(y)
@@ -32,6 +33,11 @@ class NoteDraw:
         self.fake = bool(fake)
         self.x_scale = float(x_scale)
         self.texture = texture
+        #: 多押（双押/多押）时改用这张高亮贴图；空串 = 没有官方 HL 变体，
+        #: 由 raster 按同一套「模糊 alpha + 染黄」规则现场合成外泛光。
+        self.texture_mh = texture_mh
+        #: 该音符是否落在「同一时刻 >= 2 个音符」的时间点上（口径见 RenderModel）。
+        self.multi = bool(multi)
 
     def __repr__(self) -> str:
         return (f"NoteDraw(kind={self.kind}, x={self.x:.1f}, y={self.y:.1f}, "
@@ -42,14 +48,15 @@ class HoldDraw:
     """一条长按：头、身、尾三个位置都在屏幕上，身按头尾连线绘制。"""
 
     __slots__ = ("x_head", "y_head", "x_tail", "y_tail", "angle", "width", "alpha",
-                 "color", "above", "fake", "texture_head", "texture_body", "texture_tail")
+                 "color", "above", "fake", "texture_head", "texture_body",
+                 "texture_tail", "multi")
 
     def __init__(self, *, x_head: float, y_head: float, x_tail: float, y_tail: float,
                  angle: float = 0.0, width: float, alpha: float = 1.0,
                  color: _t.Tuple[int, int, int] = (255, 255, 255),
                  above: bool = True, fake: bool = False,
                  texture_head: str = "", texture_body: str = "",
-                 texture_tail: str = "") -> None:
+                 texture_tail: str = "", multi: bool = False) -> None:
         self.x_head = float(x_head)
         self.y_head = float(y_head)
         self.x_tail = float(x_tail)
@@ -63,6 +70,8 @@ class HoldDraw:
         self.texture_head = texture_head
         self.texture_body = texture_body
         self.texture_tail = texture_tail
+        #: 多押（双押/多押）：长按没有官方 HL 变体，raster 会给它合成外泛黄光。
+        self.multi = bool(multi)
 
 
 class HitDraw:

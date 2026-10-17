@@ -67,6 +67,10 @@ class Renderer:
         self.content_beats = self.model.content_beats
         self.n_beats = self.model.n_beats
         self._bg_cache: dict = {}
+        #: 渐变兜底底图的 RGBA 版本。每帧都是同一张图，转换一次就够了；
+        #: `frame` 把它交给 `raster.rasterize(..., base_changed=False)`，
+        #: 由 raster 自己 copy()（写时复制）后再画，不会污染缓存。
+        self._bg_rgba_cache: dict = {}
 
     # ------------------------------------------------------------ 背景
     def _gradient(self, w: int, h: int) -> Image.Image:
@@ -88,6 +92,15 @@ class Renderer:
         img = Image.composite(Image.new("RGB", (w, h), (BG_VEIL, BG_VEIL, BG_VEIL)),
                                img, veil)
         self._bg_cache[key] = img
+        return img
+
+    def _gradient_rgba(self, w: int, h: int) -> Image.Image:
+        """渐变兜底的 RGBA 版本（按尺寸缓存），供 ``frame`` 复用同一块缓冲。"""
+        key = ("grad_rgba", int(w), int(h))
+        img = self._bg_rgba_cache.get(key)
+        if img is None:
+            img = self._gradient(w, h).convert("RGBA")
+            self._bg_rgba_cache[key] = img
         return img
 
     def backdrop(self, w: int, h: int, bg=None, *, blur=None,
@@ -115,8 +128,14 @@ class Renderer:
         if hud is not None:
             theme = theme.copy(hud=theme.hud.copy(enabled=bool(hud)))
         scene = self.model.scene_at(float(t_sec), w, h, theme)
-        backdrop = self.backdrop(w, h, bg, blur=blur, dim=dim)
-        image = raster.rasterize(scene, theme, base=backdrop)
+        if bg is None:
+            # 兜底渐变每帧都是同一张：直接交出缓存的 RGBA 缓冲，
+            # 让 raster 跳过每帧一次的 convert("RGBA")。
+            image = raster.rasterize(scene, theme, base=self._gradient_rgba(w, h),
+                                     base_changed=False)
+        else:
+            backdrop = self.backdrop(w, h, bg, blur=blur, dim=dim)
+            image = raster.rasterize(scene, theme, base=backdrop)
         if grid:
             image = self._draw_grid(image, w, h)
         return image

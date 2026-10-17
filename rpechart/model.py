@@ -118,6 +118,43 @@ def _as_beat(value: _t.Any, default: _t.Any = None) -> Beat:
     return Beat.of(value)
 
 
+def _nn(obj: dict, key: str, default: _t.Any) -> _t.Any:
+    """取 ``obj[key]``，JSON 里显式的 ``null`` 按「键不存在」处理。
+
+    别人手写 / 转换器产出的谱面里常见 ``"size": null`` 这类空值。旧实现直接
+    ``float(obj.get("size", 1.0))``，拿到 None 就抛 TypeError 崩溃；而 None 的
+    语义就是「没写」，应当落回默认值。
+    """
+    value = obj.get(key)
+    return default if value is None else value
+
+
+def _list_or_none(obj: dict, key: str, default: _t.Any = None) -> list:
+    """取列表字段；``null`` / 缺失 / 类型不对时返回 ``default``（默认空表）。
+
+    旧实现直接 ``for x in obj.get("judgeLineList", [])``，遇到 ``null`` 会抛
+    ``TypeError: 'NoneType' object is not iterable``。
+    """
+    value = obj.get(key)
+    if isinstance(value, list):
+        return value
+    return [] if default is None else list(default)
+
+
+def _num_or_none(value: _t.Any) -> _t.Optional[int]:
+    """宽容地把数值字段（含数字字符串）转成 int；不认识的写法返回 None。"""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(float(value.strip()))
+        except ValueError:
+            return None
+    return None
+
+
 class _JsonMixin:
     """给 dataclass 提供统一的 ``to_json``：驼峰键名 + ``_extra`` 透传。"""
 
@@ -149,6 +186,10 @@ def _dump_easing(value: _t.Any) -> int:
     整数**原样保留**：真实谱面里确实存在 ``easingType = 0``（temmie 的
     inclineEvents、若干 170 谱面），规范化只应发生在求值（:func:`ease`）时，
     不能顺手改写别人的文件。字符串 / 浮点这类便捷输入才走规范化。
+
+    已知取舍：浮点写法 ``1.0`` 会被写成整数 ``1``（``_load_easing`` 同样先取整）。
+    真实谱面里 easingType 恒为整数，浮点只出现在手工构造的输入里；为了让
+    「读进来再写回去」稳定成同一个值，这里统一成整数，不去保真浮点写法。
     """
     if isinstance(value, bool) or not isinstance(value, int):
         return clamp_easing(value)
@@ -190,28 +231,6 @@ def _present_keys(obj: _t.Optional[dict]) -> frozenset:
     不能由我们替 RPE 决定 —— 载入时见过的键一律原样保留。
     """
     return frozenset(obj.keys()) if obj else frozenset()
-
-
-def _emit(present: _t.Container[str], key: str, value: _t.Any, default: _t.Any) -> bool:
-    """该键是否应当写进 JSON。
-
-    载入过的谱面：字段本来在就写（哪怕值等于默认值）。
-    程序化新建的对象：只在值偏离默认时才写，保持输出干净。
-    """
-    if key in present:
-        return True
-    if isinstance(value, float) and isinstance(default, (int, float)):
-        return abs(value - float(default)) > 1e-12
-    if isinstance(value, (list, tuple)) and isinstance(default, (list, tuple)):
-        if len(value) != len(default):
-            return True
-        return any(
-            (abs(float(a) - float(b)) > 1e-12)
-            if isinstance(a, (int, float)) and isinstance(b, (int, float))
-            else a != b
-            for a, b in zip(value, default)
-        )
-    return value != default
 
 
 def _is_loaded(obj: _t.Any) -> bool:
@@ -357,7 +376,7 @@ class Note(_JsonMixin):
                 tint_key = "color"
         st = _as_beat(obj.get("startTime"), 0)
         et_raw = obj.get("endTime")
-        ntype = int(obj.get("type", NOTE_TAP))
+        ntype = int(_nn(obj, "type", NOTE_TAP))
         et = _as_beat(et_raw, st) if et_raw is not None else st
         if ntype != NOTE_HOLD:
             # 非 Hold 的 endTime 应等于 startTime；旧文件里偶有不一致，这里归位
@@ -366,16 +385,16 @@ class Note(_JsonMixin):
             type=ntype,
             startTime=st,
             endTime=et,
-            positionX=float(obj.get("positionX", 0.0)),
-            above=int(obj.get("above", 1)),
-            alpha=int(obj.get("alpha", 255)),
-            isFake=int(obj.get("isFake", 0)),
-            size=float(obj.get("size", 1.0)),
-            speed=float(obj.get("speed", 1.0)),
-            visibleTime=float(obj.get("visibleTime", 999999.0)),
-            yOffset=float(obj.get("yOffset", 0.0)),
+            positionX=float(_nn(obj, "positionX", 0.0)),
+            above=int(_nn(obj, "above", 1)),
+            alpha=int(_nn(obj, "alpha", 255)),
+            isFake=int(_nn(obj, "isFake", 0)),
+            size=float(_nn(obj, "size", 1.0)),
+            speed=float(_nn(obj, "speed", 1.0)),
+            visibleTime=float(_nn(obj, "visibleTime", 999999.0)),
+            yOffset=float(_nn(obj, "yOffset", 0.0)),
             hitsound=obj.get("hitsound"),
-            judgeArea=float(obj.get("judgeArea", 1.0)),
+            judgeArea=float(_nn(obj, "judgeArea", 1.0)),
             tint=list(tint) if tint is not None else None,
             tintHitEffects=list(obj["tintHitEffects"])
             if obj.get("tintHitEffects") is not None
@@ -461,7 +480,11 @@ class Event(_JsonMixin):
         # 后者仍在，所以分别按存在性决定。
         if self.bezier or "bezier" in self._present:
             data["bezier"] = int(self.bezier)
-        if self.bezier or "bezierPoints" in self._present or "bezier" in self._present:
+        # 默认的 bezierPoints 也必须写回：真实谱面里普通事件恒含这个键
+        # （哪怕是 [0,0,0,0]），只按「值偏离默认」决定会让「RPE 打开→保存」
+        # 平白少一个键。这里是程序化新建的普通 Event，不是 SpeedEvent。
+        if self.bezier or "bezierPoints" in self._present or "bezier" in self._present \
+                or not _is_loaded(self):
             data["bezierPoints"] = [float(v) for v in self.bezierPoints]
         if self.font is not None:
             data["font"] = self.font
@@ -505,12 +528,12 @@ class Event(_JsonMixin):
             endTime=et,
             start=start,
             end=end,
-            easingType=_load_easing(obj.get("easingType", 1)),
-            easingLeft=float(obj.get("easingLeft", 0.0)),
-            easingRight=float(obj.get("easingRight", 1.0)),
-            linkgroup=int(obj.get("linkgroup", 0)),
-            bezier=int(obj.get("bezier", 0)),
-            bezierPoints=[float(v) for v in obj.get("bezierPoints", [0.0, 0.0, 0.0, 0.0])],
+            easingType=_load_easing(_nn(obj, "easingType", 1)),
+            easingLeft=float(_nn(obj, "easingLeft", 0.0)),
+            easingRight=float(_nn(obj, "easingRight", 1.0)),
+            linkgroup=int(_nn(obj, "linkgroup", 0)),
+            bezier=int(_nn(obj, "bezier", 0)),
+            bezierPoints=[float(v) for v in _nn(obj, "bezierPoints", [0.0, 0.0, 0.0, 0.0])],
             font=obj.get("font"),
             _extra=_read_extra(obj, known),
             _present=_present_keys(obj),
@@ -585,12 +608,12 @@ class SpeedEvent(_JsonMixin):
         return cls(
             startTime=st,
             endTime=et,
-            start=float(obj.get("start", 1.0)),
-            end=float(obj.get("end", obj.get("start", 1.0))),
-            easingType=_load_easing(obj.get("easingType", 1)),
-            easingLeft=float(obj.get("easingLeft", 0.0)),
-            easingRight=float(obj.get("easingRight", 1.0)),
-            linkgroup=int(obj.get("linkgroup", 0)),
+            start=float(_nn(obj, "start", 1.0)),
+            end=float(_nn(obj, "end", _nn(obj, "start", 1.0))),
+            easingType=_load_easing(_nn(obj, "easingType", 1)),
+            easingLeft=float(_nn(obj, "easingLeft", 0.0)),
+            easingRight=float(_nn(obj, "easingRight", 1.0)),
+            linkgroup=int(_nn(obj, "linkgroup", 0)),
             _extra=_read_extra(obj, known),
             _present=_present_keys(obj),
         )
@@ -615,7 +638,9 @@ class EventLayer(_JsonMixin):
             getattr(self, k) for k in COMMON_EVENT_FIELDS if hasattr(self, k)
         ) and not self._extra
 
-    def to_json(self, drop_empty: bool = True) -> _t.Optional[dict]:
+    def to_json(
+        self, drop_empty: bool = True, *, keep_empty: bool = False
+    ) -> _t.Optional[dict]:
         data: dict[str, _t.Any] = {}
         for key in COMMON_EVENT_FIELDS:
             items = getattr(self, key, None)
@@ -626,7 +651,9 @@ class EventLayer(_JsonMixin):
         for event in data.get(EVENT_ALPHA, []):
             _intify_event_values(event)
         data.update(copy.deepcopy(self._extra))
-        if not data and drop_empty:
+        if not data and drop_empty and not keep_empty:
+            # 程序化新建的空层等价于「不存在」，丢掉；但调用方说了
+            # keep_empty（载入过的行按槽位还原）时写成 {}，保住数组长度。
             return None
         return data
 
@@ -662,7 +689,7 @@ class ExtendedEvents(_JsonMixin):
     def is_empty(self) -> bool:
         return not any(getattr(self, k) for k in SPECIAL_EVENT_FIELDS) and not self._extra
 
-    def to_json(self) -> _t.Optional[dict]:
+    def to_json(self, *, keep_empty: bool = False) -> _t.Optional[dict]:
         data: dict[str, _t.Any] = {}
         for key in SPECIAL_EVENT_FIELDS:
             items = getattr(self, key, None)
@@ -673,7 +700,11 @@ class ExtendedEvents(_JsonMixin):
         for event in data.get("colorEvents", []):
             _intify_event_values(event)
         data.update(copy.deepcopy(self._extra))
-        return data or None
+        if not data and not keep_empty:
+            # 程序化新建的空 extended 不写；但文件里写了 "extended": {} 时
+            # keep_empty 为真，原样写回空字典（整键消失会改变文件）。
+            return None
+        return data
 
     @classmethod
     def from_json(cls, obj: _t.Optional[dict]) -> "ExtendedEvents":
@@ -719,7 +750,9 @@ class ControlKeyframe(_JsonMixin):
     @classmethod
     def from_json(cls, obj: dict, value_key: str = "value") -> "ControlKeyframe":
         obj = obj or {}
-        known = {"x", "easing", value_key}
+        # "value" 永远算已知键：它要么就是 value_key 本身，要么是同义的别名，
+        # 读入后统一按 value_key 写回。
+        known = {"x", "easing", value_key, "value"}
         value = obj.get(value_key)
         if value is None:
             value = obj.get("value", 1.0)
@@ -775,12 +808,11 @@ class Controls(_JsonMixin):
             raw = obj.get(key)
             if raw is None:
                 continue
-            kwargs[key] = [
-                ControlKeyframe.from_json(f, value_key)
-                if f.get(value_key) is None and f.get("value") is not None
-                else ControlKeyframe.from_json(f, value_key)
-                for f in raw
-            ]
+            # 两个分支原本完全相同（死三目）：这里要的其实是「键名改写」——
+            # 别人文件里若用通用的 "value" 写 posControl 的数值，读进来后统一
+            # 按 value_key 输出，不能把 "value" 当未知键原样再写一遍（否则
+            # 往返一次会同时出现 pos 与 value 两个数值键）。
+            kwargs[key] = [ControlKeyframe.from_json(f, value_key) for f in raw]
         return cls(**kwargs)
 
 
@@ -885,18 +917,21 @@ class JudgeLine(_JsonMixin):
         # eventLayers 里的 null 是占位语义（实测 88 处，全在 5 层行的第 5 元素），
         # 不能简单过滤掉，否则数组长度会从 5 变成 4。载入过的严格按槽位还原；
         # 程序化新建的则丢掉空层（真实谱面里 1~5 层都出现过，短数组完全合法）。
+        had_layers = "eventLayers" in self._present
         serialized: list[_t.Any] = []
         for index, layer in enumerate(self.eventLayers):
             if index in self._null_layers:
                 serialized.append(None)
             else:
-                serialized.append(layer.to_json())
+                serialized.append(layer.to_json(keep_empty=had_layers))
         if not _is_loaded(self):
             serialized = [item for item in serialized if item is not None]
-        if serialized:
+        # 文件里出现过的空数组要保住（连同上面 keep_empty 还原的空 {} 层）：
+        # 整键消失同样是改变别人的文件。
+        if serialized or had_layers:
             data["eventLayers"] = serialized
-        ext = self.extended.to_json()
-        if ext:
+        ext = self.extended.to_json(keep_empty="extended" in self._present)
+        if ext is not None:
             data["extended"] = ext
         ctrl = self.controls.to_json()
         if ctrl:
@@ -943,6 +978,11 @@ class JudgeLine(_JsonMixin):
             "skewControl",
             "yControl",
         }
+        extra = _read_extra(obj, known)
+        raw_num = _num_or_none(obj.get("numOfNotes"))
+        if raw_num is None and obj.get("numOfNotes") is not None:
+            # 认不出的写法（例如 "12" 之外的乱码）也要原样带回，不能整键吞掉。
+            extra["numOfNotes"] = copy.deepcopy(obj["numOfNotes"])
         raw_layers = obj.get("eventLayers")
         layers: list[EventLayer] = []
         null_layers: set[int] = set()
@@ -953,28 +993,27 @@ class JudgeLine(_JsonMixin):
                     null_layers.add(index)
                 layers.append(EventLayer.from_json(raw))
         return cls(
-            notes=[Note.from_json(n) for n in obj.get("notes", [])],
+            notes=[Note.from_json(n) for n in _list_or_none(obj, "notes")],
             eventLayers=layers,
             extended=ExtendedEvents.from_json(obj.get("extended")),
             controls=Controls.from_json(obj),
-            Group=int(obj.get("Group", 0)),
-            Name=str(obj.get("Name", "Untitled")),
-            Texture=str(obj.get("Texture", "line.png")),
-            anchor=[float(v) for v in obj.get("anchor", [0.5, 0.5])],
-            father=int(obj.get("father", -1)),
-            isCover=int(obj.get("isCover", 1)),
-            zOrder=int(obj.get("zOrder", 0)),
-            bpmfactor=float(obj.get("bpmfactor", 1.0)) or 1.0,
+            Group=int(_nn(obj, "Group", 0)),
+            Name=str(_nn(obj, "Name", "Untitled")),
+            Texture=str(_nn(obj, "Texture", "line.png")),
+            anchor=[float(v) for v in _list_or_none(obj, "anchor", [0.5, 0.5])],
+            father=int(_nn(obj, "father", -1)),
+            isCover=int(_nn(obj, "isCover", 1)),
+            zOrder=int(_nn(obj, "zOrder", 0)),
+            # 不能写 float(...) or 1.0：0.0 是 falsy，会被悄悄抬成 1.0，
+            # 而 bpmfactor=0 是明确的错误值，应当原样保留交给校验器报
+            # BadBpmFactor，而不是替谱师改成合法值。
+            bpmfactor=1.0 if obj.get("bpmfactor") is None else float(obj["bpmfactor"]),
             attachUI=obj.get("attachUI"),
             isGif=bool(obj.get("isGif", False)),
             rotateWithFather=bool(obj.get("rotateWithFather", False)),
-            _raw_numOfNotes=(
-                int(obj["numOfNotes"])
-                if isinstance(obj.get("numOfNotes"), (int, float))
-                else None
-            ),
+            _raw_numOfNotes=raw_num,
             _null_layers=frozenset(null_layers),
-            _extra=_read_extra(obj, known),
+            _extra=extra,
             _present=_present_keys(obj),
         )
 
@@ -1042,10 +1081,12 @@ class Meta(_JsonMixin):
             or self.background != "background.png"
         ):
             data["background"] = self.background
-        if self.illustrator is not None:
+        # 显式的 null 也是文件内容：`"illustration": null` / `"duration": null`
+        # 载入后必须原样写回，不能被当成「键不存在」而丢掉。
+        if self.illustrator is not None or "illustration" in self._present:
             data["illustration"] = self.illustrator
-        if self.duration is not None:
-            data["duration"] = float(self.duration)
+        if self.duration is not None or "duration" in self._present:
+            data["duration"] = None if self.duration is None else float(self.duration)
         data.update(copy.deepcopy(self._extra))
         return data
 
@@ -1092,13 +1133,28 @@ class Meta(_JsonMixin):
 class TimeTag(_JsonMixin):
     name: str = ""
     time: Beat = field(default_factory=lambda: Beat(0))
+    _extra: dict = field(default_factory=dict, repr=False)
 
     def to_json(self) -> dict:
-        return {"name": self.name, "time": self.time.to_list()}
+        data = {"name": self.name, "time": self.time.to_list()}
+        data.update(copy.deepcopy(self._extra))
+        return data
 
     @classmethod
     def from_json(cls, obj: dict) -> "TimeTag":
-        return cls(name=str(obj.get("name", "")), time=_as_beat(obj.get("time"), 0))
+        obj = obj or {}
+        # 未知键（实测真实谱面里有 color 这类）必须无损透传。
+        known = {"name", "time", "startTime"}
+        raw_time = obj.get("time")
+        if raw_time is None:
+            # 少数转换器把拍号写成 startTime：读进来，写回时统一用 time。
+            raw_time = obj.get("startTime")
+        name = obj.get("name")
+        return cls(
+            name="" if name is None else str(name),
+            time=_as_beat(raw_time, 0),
+            _extra=_read_extra(obj, known),
+        )
 
 
 @dataclass
@@ -1163,6 +1219,12 @@ class Chart(_JsonMixin):
                     for e in getattr(layer, key):
                         if e.endTime > end:
                             end = e.endTime
+            # 故事板类事件（extended）同样有持续时间：只看 COMMON 会让
+            # 「最后一拍只有 scaleX/color 事件」的谱面时长少报。
+            for key in SPECIAL_EVENT_FIELDS:
+                for e in getattr(line.extended, key):
+                    if e.endTime > end:
+                        end = e.endTime
         return end
 
     def sort(self) -> None:
@@ -1178,9 +1240,14 @@ class Chart(_JsonMixin):
         data: dict[str, _t.Any] = {
             "BPMList": [_dump_typed(b) for b in self.BPMList],
             "META": self.META.to_json(),
-            "judgeLineGroup": list(self.judgeLineGroup),
             "judgeLineList": [_dump_typed(l) for l in self.judgeLineList],
         }
+        # 区分「显式空数组」与「整键缺失」：前者是文件内容（实测真实谱面里
+        # 有这种谱），后者不该被我们凭空补成一个空数组。程序化新建照旧写
+        # 默认的 ["Default"]。
+        if self.judgeLineGroup or not _is_loaded(self) \
+                or "judgeLineGroup" in self._present:
+            data["judgeLineGroup"] = list(self.judgeLineGroup)
         # 这几个键是后来才加入的：chartTime 是 141+、multiLineString/multiScale 是
         # 1.4 时代、xybind 只在 170 谱面里见到、timeTags 是 130+。旧谱面整键不存在，
         # 载入过的一律按存在性决定，程序化新建时才补出来。
@@ -1222,15 +1289,21 @@ class Chart(_JsonMixin):
         chart = cls(
             BPMList=bpm_list,
             META=Meta.from_json(obj.get("META", {})),
-            judgeLineList=[JudgeLine.from_json(l) for l in obj.get("judgeLineList", [])],
-            chartTime=float(obj.get("chartTime", 0.0)),
-            judgeLineGroup=[str(g) for g in obj.get("judgeLineGroup", [])],
-            timeTags=[TimeTag.from_json(t) for t in obj.get("timeTags", [])],
+            judgeLineList=[
+                JudgeLine.from_json(l) for l in _list_or_none(obj, "judgeLineList")
+            ],
+            chartTime=float(_nn(obj, "chartTime", 0.0)),
+            judgeLineGroup=[str(g) for g in _list_or_none(obj, "judgeLineGroup", [])],
+            timeTags=[TimeTag.from_json(t) for t in _list_or_none(obj, "timeTags", [])],
             multiLineString=str(obj.get("multiLineString", "")),
             multiScale=float(obj.get("multiScale", 1.0)),
             xybind=bool(obj.get("xybind", True)),
             _extra=_read_extra(obj, known),
             _present=_present_keys(obj),
         )
+        # 载入即按 startTime 重排 BPMList：既有用例
+        # tests/test_model.py::chart_bpm_list_is_sorted_on_load 正面钉住了这个行为
+        # （输入 200@32、100@0，断言载入后 [100.0, 200.0]），所以这里保持原样；
+        # 「不改动调用方顺序」只落在写盘路径（io.save_chart / export_pez 对副本排序）。
         chart.BPMList.sort(key=lambda b: b.startTime.frac)
         return chart

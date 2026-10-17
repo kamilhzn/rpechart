@@ -109,16 +109,20 @@ def save_chart(
 ) -> Path:
     """写出一张谱面为 JSON 文件（RPE 自己的文本风格，LF 换行）。
 
-    写出前会**就地**调用 :meth:`~rpechart.model.Chart.sort`，保证落盘的音符与
+    写出前会对**副本**调用 :meth:`~rpechart.model.Chart.sort`，保证落盘的音符与
     事件按 RPE 自己的标准顺序排列。此前只有 :meth:`ChartBuilder.save` 会排序，
     走 ``load_chart`` → 改 → ``save_chart`` 的路径会把乱序（例如
     ``JudgeLineBuilder.line_speed`` 直接 append 造成的）原样写进文件。
+
+    排序只发生在副本上：旧实现对调用方**就地**排序，写盘之后调用方手里的
+    Chart 已经被改了顺序（调用方要是拿它继续编辑，看到的是自己没做过的重排）。
 
     ``indent`` 参数保留只为兼容旧调用：格式由 :mod:`rpechart.rpedump` 决定，
     缩进恒为 RPE 的 3 个空格。
     """
     if not isinstance(chart, Chart):
         raise TypeError("save_chart 需要 Chart 对象")
+    chart = chart.copy()
     chart.sort()
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -481,7 +485,9 @@ def export_pez(
         out = out.with_suffix(".pez")
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    # 与 save_chart 一致：打包前就地排序，保证包里的谱面是 RPE 的标准顺序。
+    # 与 save_chart 一致：在副本上排序，保证包里的谱面是 RPE 的标准顺序，
+    # 同时不改动调用方手里的 Chart。
+    chart = chart.copy()
     chart.sort()
 
     meta = chart.META

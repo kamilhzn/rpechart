@@ -111,10 +111,6 @@ class NoteSpec:
 
 
 # ================================================================== 判定线
-#: 「初始位置」种子事件的时长。RPE 不允许零长度事件，用一个极短事件表达
-#: 「从第 0 拍起就是这个值」。后续在同一时刻放置事件时会被自动吸收。
-_SEED_EPS = Beat([1, 0, 10000])
-
 #: ``at()`` 在 t=0 处放置的常量事件延伸多远（拍）。后续事件会自动裁剪它。
 _SEED_HOLD = Beat(64)
 
@@ -225,8 +221,14 @@ class JudgeLineBuilder:
         * 若两个事件首尾恰好相接，直接缝上，不留空隙。
         """
         if kind == EVENT_SPEED:
+            # 缓动窗口与 linkgroup 必须一起转发：旧实现只给了 easing，
+            # ``easing_left``/``easing_right`` 被静默丢掉。bezier 不转发 ——
+            # SpeedEvent 从模型层就没有这个字段（测试
+            # speed_event_has_no_bezier_fields_of_its_own 钉住了这一条）。
             return self.line_speed(
-                start_time, end_time, start, end, easing=easing, layer=layer, linkgroup=linkgroup
+                start_time, end_time, start, end,
+                easing=easing, layer=layer, linkgroup=linkgroup,
+                easing_left=easing_left, easing_right=easing_right,
             )
         st, et = Beat.of(start_time), Beat.of(end_time)
         if et <= st:
@@ -603,6 +605,8 @@ class JudgeLineBuilder:
         easing: _t.Any = 1,
         layer: int = 0,
         linkgroup: int = 0,
+        easing_left: float = 0.0,
+        easing_right: float = 1.0,
     ) -> SpeedEvent:
         """判定线流速事件：**乘**在音符自身 speed 之上。
 
@@ -617,8 +621,14 @@ class JudgeLineBuilder:
             start=float(start),
             end=float(end),
             easingType=easing,
+            easingLeft=float(easing_left),
+            easingRight=float(easing_right),
             linkgroup=int(linkgroup),
         )
+        # 仍然直接 append（不过 _splice）：见 gen/motion.py 的模块 docstring ——
+        # 线速区间由生成层用 assert_disjoint 自证互不重叠，_splice 的自动填隙
+        # 反而会给「音量为零的段」补出多余事件。需要 RPE 标准顺序时走
+        # JudgeLine.sort() / save_chart()。
         self._layer(layer).speedEvents.append(ev)
         return ev
 
@@ -979,6 +989,20 @@ class ChartBuilder:
         return self.timing.second_to_beat(seconds)
 
     # ---------------------------------------------------------------- 判定线
+    #: ``line()`` 认识的身份参数 → :class:`JudgeLineBuilder` 上的同名方法。
+    #: 旧实现只认 ``name``/``x``/``y``，其余 ``**kwargs`` 被静默吞掉
+    #: （``cb.line(z_order=7)`` 什么也不做，却不报错）。
+    _LINE_ATTRS: _t.ClassVar[dict] = {
+        "group": "group",
+        "z_order": "z_order",
+        "texture": "texture",
+        "cover": "cover",
+        "bpm_factor": "bpm_factor",
+        "attach_ui": "attach_ui",
+        "father": "father",
+        "rotate_with_father": "rotate_with_father",
+    }
+
     def line(
         self,
         *,
@@ -991,13 +1015,26 @@ class ChartBuilder:
         """新建一条判定线并返回它的构建器。
 
         ``x``/``y`` 给了的话会立即在 ``at`` 处放好位置。
+
+        其余身份参数按 :data:`_LINE_ATTRS` 转发给对应的 builder 方法
+        （``group`` / ``z_order`` / ``texture`` / ``cover`` / ``father`` /
+        ``bpm_factor`` / ``attach_ui`` / ``rotate_with_father``）；认不出的键
+        直接 ``TypeError``，绝不静默吞掉。
         """
+        unknown = [k for k in kwargs if k not in self._LINE_ATTRS]
+        if unknown:
+            raise TypeError(
+                f"ChartBuilder.line() 不认识的参数 {sorted(unknown)}；"
+                f"可用: {sorted(self._LINE_ATTRS)}"
+            )
         index = len(self.chart.judgeLineList)
         line = JudgeLine(Name=name or f"Line {index}")
         self.chart.judgeLineList.append(line)
         builder = JudgeLineBuilder(self, line, index)
         if x is not None or y is not None:
             builder.at(x or 0.0, y or 0.0, at=at)
+        for key, value in kwargs.items():
+            getattr(builder, self._LINE_ATTRS[key])(value)
         return builder
 
     def line_builder(self, index: int) -> JudgeLineBuilder:

@@ -25,10 +25,21 @@ _TEXTURE_CACHE: dict = {}
 _FONT_CACHE: dict = {}
 _MISSING = object()
 
+#: ``find_resources`` 的目录查找结果缓存。渲染一帧要查 9 次以上（每个音符贴图、
+#: 每次文本绘制、``has_official_assets``），而每次查找都要对每个父目录做两次
+#: ``is_dir()`` 系统调用（Windows 上约 8ms）。键含 ``(环境变量值, start)``：
+#: 运行时改 ``RPECHART_ASSETS`` 或换 ``start`` 都取到各自的条目，``None`` 与路径
+#: 也不会互相串味。正结果（Path）与负结果（None）都缓存。
+_RESOURCE_CACHE: dict = {}
+
 
 def find_resources(start=None):
     """向上查找 ``PhiEdit/Resources``（含 ``Texture`` 目录的那一级）。"""
     env = os.environ.get(ASSETS_ENV)
+    key = (env, str(start) if start is not None else None)
+    cached = _RESOURCE_CACHE.get(key, _MISSING)
+    if cached is not _MISSING:
+        return cached
     candidates = []
     if env:
         candidates.append(Path(env))
@@ -39,9 +50,11 @@ def find_resources(start=None):
     for path in candidates:
         try:
             if path.is_dir() and (path / "Texture").is_dir():
+                _RESOURCE_CACHE[key] = path
                 return path
         except OSError:
             continue
+    _RESOURCE_CACHE[key] = None
     return None
 
 
@@ -108,9 +121,10 @@ def hit_texture_names(start=None):
 
 
 def clear_cache() -> None:
-    """清空贴图与字体缓存（换资源目录时用）。"""
+    """清空贴图/字体缓存与资源目录查找缓存（换资源目录时用）。"""
     _TEXTURE_CACHE.clear()
     _FONT_CACHE.clear()
+    _RESOURCE_CACHE.clear()
 
 
 def load_font(alias: str, size: int, start=None):

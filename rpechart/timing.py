@@ -41,6 +41,12 @@ class Timing:
                 bpm = float(getattr(item, "bpm"))
                 start = Beat.of(getattr(item, "startTime"))
             factor = float(bpmfactor) or 1.0
+            # bpm <= 0 是明确的错误值，交给校验器报 BadBPM；但换算必须要有一个
+            # 有限的分母，否则 Timing 会在 beat_to_second 里抛 ZeroDivisionError
+            # （旧实现存 effective = 0.0 无任何 guard）。用 RPE 的默认 120 兜底，
+            # 不要写 `bpm or 120.0`：那会把非零的非法值也悄悄换掉。
+            if not bpm > 0:
+                bpm = 120.0
             norm.append((bpm, start, bpm / factor))
         norm.sort(key=lambda x: x[1].frac)
         # 首段必须从 0 拍开始，否则 RPE 的语义不明确

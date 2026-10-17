@@ -19,6 +19,7 @@ from pathlib import Path
 from PIL import Image
 
 from ..io import load_chart
+from ..audio import SE_VOLUME
 from ..video import ffmpeg_available, render_chart_video
 from .renderer import Renderer
 from .timeline import RenderModel
@@ -213,12 +214,15 @@ def cmd_video(args):
         if cover:
             print(f"自动铺底：{cover}")
 
+    if args.se_dir:
+        print(f"叠加打击音：{args.se_dir}（音量 {args.se_volume:g}）")
     info = render_chart_video(
         args.chart, out_path, fps=args.fps, size=(w, h),
         start=args.start, end=args.end, audio=audio, cover=cover,
         hud=(args.hud and not args.no_hud), progress=progress,
         extra_args=args.extra,
-        video=args.video, blur=args.bg_blur, dim=args.bg_dim)
+        video=args.video, blur=args.bg_blur, dim=args.bg_dim,
+        hitsounds=args.se_dir, se_volume=args.se_volume)
     sys.stdout.write("\r" + " " * 48 + "\r")
     print(f"写出 {info.path}  {info.width}x{info.height}  {info.fps:g}fps  "
           f"{info.frames} 帧  {info.duration:.2f}s  "
@@ -283,6 +287,11 @@ def build_parser():
     p.add_argument("--audio", default=None,
                    help="音轨；默认取谱面同目录的 song.mp3（没有则不出声）")
     p.add_argument("--no-audio", action="store_true", help="强制不混音")
+    p.add_argument("--se-dir", default=None,
+                   help="PhiEdit 官方 SE 目录（tap.mp3/flick.mp3/drag.mp3）："
+                        "把谱面音符混成打击音叠加进视频；不给就不加")
+    p.add_argument("--se-volume", type=float, default=SE_VOLUME,
+                   help="打击音音量，默认 0.532（PhiEdit 的 SEVolume）")
     p.add_argument("--cover", default=None, help="曲绘图，铺底并压暗压模糊")
     p.add_argument("--video", default=None,
                    help="动图底版：用原片逐帧做背景（谱面叠在上面）")

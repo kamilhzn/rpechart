@@ -52,11 +52,19 @@ runner 用 `importlib` **按路径**加载 `test_*.py`（不是 import 包），
 | `tests/test_video.py` | 帧 → MP4、渲染器定位、流式解码 |
 | `tests/test_render.py` | 渲染几何（按秒积分）、场景纯函数、HUD |
 | `tests/test_gen.py` | 生成层（spec 校验、确定性、三道合法化、四条硬约束） |
+| `tests/test_render_cycles.py` | 渲染侧的 `father` 链（含 `father=0` 与成环/自环/深链） |
+| `tests/test_render_hl.py` | 多押高亮：口径、HL 贴图、现场合成外泛光（自造迷你素材） |
+| `tests/test_render_builtin.py` | 无官方素材时的内置键形（四键标准色/白边、多押黄光、官方优先） |
 | `tests/test_web.py` | Web UI 的 HTTP 契约（真起服务、真打请求） |
+| `tests/test_web_api.py` | 新增 API：能力探测 / 时间轴 / JPEG / 胶片 / 导出任务 |
+| `tests/test_web_studio.py` | 前端静态契约：DOM id、CSS 令牌、可达性、时间轴缩放、SE 接线 |
+| `tests/test_web_se.py` | 导出打击音在 Web 层的参数归一化与降级 |
+| `tests/test_bugfixes.py` | 一轮只读审查揪出的缺陷的守门测试（崩溃 / 静默丢数据 / 字节保真） |
+| `tests/test_se_audio.py` | 打击音混音与 `--se-dir` 命令行接线 |
 | `tests/test_example.py` | `examples/make_demo_chart.py` 能跑通 |
 
 ## 约定
 
 - 用例只在**临时目录**里造数据，不联网、不需要 pytest；
 - 需要样本谱面时从 `tests/fixtures/` **只读**取（缺样本则跳过而不是失败）；
-- 当前规模：`python tests/run_tests.py` → **532 个用例**（约 80s）。
+- 当前规模：`python tests/run_tests.py` → **622 个用例**（约 63s）。
